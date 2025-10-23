@@ -92,7 +92,7 @@ export default defineConfig({
   server: {
     allowedHosts: true,
     host: '0.0.0.0',
-    port: 4000,
+    port: 5000,
     hmr: {
       overlay: false,
     },
@@ -103,6 +103,6 @@ export default defineConfig({
   define: {
     'process.env.NEXT_PUBLIC_CREATE_HOST': JSON.stringify('jonnykarate.ngrok.io'),
     'process.env.NEXT_PUBLIC_CREATE_BASE_URL': JSON.stringify('https://jonnykarate.ngrok.io'),
-    'process.env.CORS_ORIGINS': JSON.stringify('https://jonnykarate.ngrok.io,http://localhost:4000'),
+    'process.env.CORS_ORIGINS': JSON.stringify('https://jonnykarate.ngrok.io,http://localhost:5000'),
   },
 });

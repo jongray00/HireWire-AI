@@ -605,4 +605,4 @@ if __name__ == "__main__":
 
     logger.info(f"Password extracted: {bool(agent_credentials['password'])}")
 
-    agent.serve(host="0.0.0.0", port=3030)
+    agent.serve(host="0.0.0.0", port=8000)
