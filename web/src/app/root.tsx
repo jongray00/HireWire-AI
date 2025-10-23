@@ -22,6 +22,7 @@ import {
 import './global.css';
 import HydrationErrorBoundary, { useSuppressHydrationWarning } from './components/HydrationErrorBoundary';
 import { initCSSMonitor, checkCSSLoaded, forceInjectStyles } from './utils/cssRecovery';
+import { initHydrationRecovery, cleanDOMForHydration } from './utils/hydrationRecovery';
 
 import fetch from '@/__create/fetch';
 // SessionProvider removed - not needed for demo
@@ -347,8 +348,14 @@ export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const pathname = location?.pathname;
   
-  // Initialize CSS recovery system
+  // Initialize CSS and hydration recovery systems
   useEffect(() => {
+    // Clean DOM before React processes it
+    cleanDOMForHydration();
+    
+    // Initialize hydration recovery
+    initHydrationRecovery();
+    
     // Initialize CSS monitoring and recovery
     initCSSMonitor();
     
