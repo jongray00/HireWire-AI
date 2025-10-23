@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  input, textarea, select, button {
+    @apply outline-none focus:outline-none;
+  }
+}
+
+/* SignalWire video container styles - matches holy-guacamole pattern */
+#video-container video,
+#video-container > div > video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* SignalWire may inject wrapper divs */
+#video-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Hide local video if present - we only want to see the remote agent */
+#video-container video[id*="local"],
+#video-container video.localVideo {
+  display: none;
+}
