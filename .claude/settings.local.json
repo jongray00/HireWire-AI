@@ -7,7 +7,8 @@
       "Bash(ss:*)",
       "Read(//tmp/**)",
       "Bash(python3:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []
