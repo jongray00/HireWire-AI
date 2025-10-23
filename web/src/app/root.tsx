@@ -23,6 +23,7 @@ import './global.css';
 import HydrationErrorBoundary, { useSuppressHydrationWarning } from './components/HydrationErrorBoundary';
 import { initCSSMonitor, checkCSSLoaded, forceInjectStyles } from './utils/cssRecovery';
 import { initHydrationRecovery, cleanDOMForHydration } from './utils/hydrationRecovery';
+import { injectCriticalStyles } from './utils/inlineStyles';
 
 import fetch from '@/__create/fetch';
 // SessionProvider removed - not needed for demo
@@ -350,6 +351,9 @@ export function Layout({ children }: { children: ReactNode }) {
   
   // Initialize CSS and hydration recovery systems
   useEffect(() => {
+    // Inject critical inline styles FIRST
+    injectCriticalStyles();
+    
     // Clean DOM before React processes it
     cleanDOMForHydration();
     
@@ -359,10 +363,14 @@ export function Layout({ children }: { children: ReactNode }) {
     // Initialize CSS monitoring and recovery
     initCSSMonitor();
     
+    // Force inject styles immediately
+    forceInjectStyles();
+    
     // Additional check after component mounts
     const checkTimer = setTimeout(() => {
       if (!checkCSSLoaded()) {
         console.warn('[Layout] CSS not loaded, forcing injection...');
+        injectCriticalStyles();
         forceInjectStyles();
       }
     }, 200);
