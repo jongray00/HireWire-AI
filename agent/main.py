@@ -605,4 +605,11 @@ if __name__ == "__main__":
 
     logger.info(f"Password extracted: {bool(agent_credentials['password'])}")
 
+    # IMPORTANT: Call get_app() before serve() to ensure our custom endpoints are registered
+    # The serve() method in the SDK checks if self._app is None, and if so, creates a default app
+    # By calling get_app() first, we set self._app to our custom app with all the API endpoints
+    logger.info("Initializing custom FastAPI app with API endpoints...")
+    app = agent.get_app()
+    logger.info(f"Custom app initialized with {len([r for r in app.routes])} routes")
+
     agent.serve(host="0.0.0.0", port=8000)

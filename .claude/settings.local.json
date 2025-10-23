@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Read(//tmp/**)",
+      "Bash(python3:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
