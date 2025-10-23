@@ -53,10 +53,6 @@ externalPort = 80
 localPort = 8000
 externalPort = 8000
 
-[[ports]]
-localPort = 32829
-externalPort = 80
-
 [deployment]
 deploymentTarget = "vm"
 run = ["bash", "-c", "(cd agent && uvicorn main:agent.app --host 0.0.0.0 --port 8000) & (cd web && npm run dev -- --port 5000 --host 0.0.0.0)"]
