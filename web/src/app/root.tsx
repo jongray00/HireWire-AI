@@ -33,7 +33,9 @@ import { useSandboxStore } from '../__create/hmr-sandbox-store';
 import type { Route } from './+types/root';
 import { useDevServerHeartbeat } from '../__create/useDevServerHeartbeat';
 
-export const links = () => [];
+export const links = () => [
+  { rel: 'icon', href: '/src/__create/favicon.png' },
+];
 
 if (globalThis.window && globalThis.window !== undefined) {
   globalThis.window.fetch = fetch;
@@ -372,8 +374,6 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
-        <script type="module" src="/src/__create/dev-error-overlay.js"></script>
-        <link rel="icon" href="/src/__create/favicon.png" />
         {/* <LoadFonts /> */}
       </head>
       <body>
