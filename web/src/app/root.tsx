@@ -21,6 +21,7 @@ import {
 } from 'react';
 import './global.css';
 import HydrationErrorBoundary, { useSuppressHydrationWarning } from './components/HydrationErrorBoundary';
+import { initCSSMonitor, checkCSSLoaded, forceInjectStyles } from './utils/cssRecovery';
 
 import fetch from '@/__create/fetch';
 // SessionProvider removed - not needed for demo
@@ -346,35 +347,20 @@ export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const pathname = location?.pathname;
   
-  // CSS injection fallback for hydration failures
+  // Initialize CSS recovery system
   useEffect(() => {
-    // Check if styles are missing (hydration failure indicator)
-    const checkStyles = () => {
-      const testEl = document.createElement('div');
-      testEl.className = 'bg-blue-500';
-      document.body.appendChild(testEl);
-      const computed = window.getComputedStyle(testEl);
-      const hasStyles = computed.backgroundColor !== 'rgba(0, 0, 0, 0)';
-      document.body.removeChild(testEl);
-      
-      if (!hasStyles) {
-        console.warn('CSS not applied, injecting fallback styles...');
-        // Force re-import of styles
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = '/src/app/global.css';
-        document.head.appendChild(link);
-        
-        // Force Tailwind recompilation
-        document.body.classList.add('css-recovery');
-        setTimeout(() => {
-          document.body.classList.remove('css-recovery');
-        }, 100);
-      }
-    };
+    // Initialize CSS monitoring and recovery
+    initCSSMonitor();
     
-    // Check styles after hydration
-    setTimeout(checkStyles, 100);
+    // Additional check after component mounts
+    const checkTimer = setTimeout(() => {
+      if (!checkCSSLoaded()) {
+        console.warn('[Layout] CSS not loaded, forcing injection...');
+        forceInjectStyles();
+      }
+    }, 200);
+    
+    return () => clearTimeout(checkTimer);
   }, []);
   
   useEffect(() => {
