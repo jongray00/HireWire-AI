@@ -1,4 +1,5 @@
-import React, { Component, ReactNode, useEffect } from 'react';
+import React, { Component, useEffect } from 'react';
+import type { ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -71,7 +72,7 @@ class HydrationErrorBoundary extends Component<Props, State> {
     document.head.appendChild(styleTag);
 
     // Force import global styles module
-    import('./global.css').then(() => {
+    import('../global.css').then(() => {
       console.log('Global styles re-imported after hydration error');
       this.setState({ stylesInjected: true });
     }).catch(err => {
