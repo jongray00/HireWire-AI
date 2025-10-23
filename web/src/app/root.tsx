@@ -374,7 +374,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <Links />
         <script type="module" src="/src/__create/dev-error-overlay.js"></script>
         <link rel="icon" href="/src/__create/favicon.png" />
-        <LoadFonts />
+        {/* <LoadFonts /> */}
       </head>
       <body>
         <ClientOnly loader={() => children} />
