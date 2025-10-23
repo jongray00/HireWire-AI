@@ -1,10 +1,47 @@
 module.exports = {
 	content: ['./src/**/*.{js,ts,jsx,tsx}'],
+	darkMode: 'class',
 	theme: {
 		fontFamily: {
 			sans: ['Inter', 'sans-serif'],
+			heading: ['Neue Einstellung', 'Arial', 'sans-serif'],
 		},
 		extend: {
+			colors: {
+				// SignalWire Brand Colors
+				sw: {
+					blue: '#044ef4',
+					pink: '#f72a72',
+					mist: '#f1f8ff',
+					breeze: '#b7d9ff',
+					deepSea: '#0336ab',
+					charcoal: '#050910',
+					grey: {
+						2: '#55606a',
+						4: '#8d969e',
+						6: '#bec3c9',
+						8: '#f5f7fa',
+					},
+					// Secondary colors
+					green: '#00aa96',
+					yellow: '#ffca31',
+					purple: '#6432e6',
+					red: '#ff002b',
+				},
+			},
+			backgroundColor: {
+				'theme-primary': 'var(--bg-primary)',
+				'theme-secondary': 'var(--bg-secondary)',
+				'theme-tertiary': 'var(--bg-tertiary)',
+			},
+			textColor: {
+				'theme-primary': 'var(--text-primary)',
+				'theme-secondary': 'var(--text-secondary)',
+				'theme-tertiary': 'var(--text-tertiary)',
+			},
+			borderColor: {
+				'theme-border': 'var(--border)',
+			},
 			fontFamily: {
 				'a-bee-zee': 'A Bee Zee',
 				'ad-la-m-display': 'Ad La M Display',

@@ -21,6 +21,7 @@ import {
 } from 'react';
 import './global.css';
 import HydrationErrorBoundary, { useSuppressHydrationWarning } from './components/HydrationErrorBoundary';
+import { ThemeProvider } from './components/ThemeProvider';
 import { initCSSMonitor, checkCSSLoaded, forceInjectStyles } from './utils/cssRecovery';
 import { initHydrationRecovery, cleanDOMForHydration } from './utils/hydrationRecovery';
 import { injectCriticalStyles } from './utils/inlineStyles';
@@ -413,11 +414,13 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* <LoadFonts /> */}
       </head>
       <body suppressHydrationWarning>
-        <HydrationErrorBoundary>
-          <ClientOnly loader={() => children} />
-        </HydrationErrorBoundary>
-        <HotReloadIndicator />
-        <Toaster position="bottom-right" />
+        <ThemeProvider>
+          <HydrationErrorBoundary>
+            <ClientOnly loader={() => children} />
+          </HydrationErrorBoundary>
+          <HotReloadIndicator />
+          <Toaster position="bottom-right" />
+        </ThemeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
