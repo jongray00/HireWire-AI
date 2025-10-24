@@ -33,6 +33,27 @@ export const injectCriticalStyles = () => {
     .bg-gray-800 { background-color: rgb(31 41 55); }
     .bg-gray-900 { background-color: rgb(17 24 39); }
     
+    /* Dark Mode Critical Styles */
+    .dark .bg-gray-50,
+    .dark .dark\\:bg-gray-900 { background-color: rgb(17 24 39) !important; }
+    .dark .bg-gray-100,
+    .dark .dark\\:bg-gray-800 { background-color: rgb(31 41 55) !important; }
+    .dark .bg-white,
+    .dark .dark\\:bg-sw-charcoal-700 { background-color: #1a1f28 !important; }
+    .dark .dark\\:bg-sw-charcoal-800 { background-color: #0a0f1a !important; }
+    .dark .dark\\:bg-sw-charcoal-900 { background-color: #050910 !important; }
+    .dark .dark\\:from-sw-charcoal-900 { --tw-gradient-from: #050910 !important; }
+    .dark .dark\\:to-sw-charcoal-800 { --tw-gradient-to: #0a0f1a !important; }
+    .dark .dark\\:border-sw-border-dark { border-color: #3a4149 !important; }
+    .dark .dark\\:text-white { color: rgb(255 255 255) !important; }
+    .dark .dark\\:text-gray-300 { color: rgb(209 213 219) !important; }
+    .dark .dark\\:text-gray-400 { color: rgb(156 163 175) !important; }
+    .dark .dark\\:text-blue-400 { color: rgb(96 165 250) !important; }
+    .dark .dark\\:text-blue-300 { color: rgb(147 197 253) !important; }
+    .dark .dark\\:text-green-400 { color: rgb(74 222 128) !important; }
+    .dark .dark\\:text-purple-400 { color: rgb(196 181 253) !important; }
+    .dark .dark\\:text-yellow-400 { color: rgb(250 204 21) !important; }
+    
     .text-white { color: rgb(255 255 255); }
     .text-gray-50 { color: rgb(249 250 251); }
     .text-gray-400 { color: rgb(156 163 175); }
