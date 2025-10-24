@@ -403,13 +403,13 @@ export default function DemoIVRPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[rgb(5,9,16)] dark:to-[rgb(10,15,26)]">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+      <header className="bg-white dark:bg-[rgb(10,15,26)] border-b border-gray-200 dark:border-[rgb(58,65,73)] sticky top-0 z-10">
         <div className="max-w-[1800px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-[rgb(4,78,244)] to-[rgb(247,42,114)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] rounded-lg flex items-center justify-center">
                 <Zap className="text-white" size={24} />
               </div>
               <div>
@@ -484,7 +484,7 @@ export default function DemoIVRPage() {
                   </h3>
                   
                   <div className="grid md:grid-cols-3 gap-4 mb-4">
-                    <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                    <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                       <div className="text-blue-600 dark:text-blue-400 font-semibold text-sm mb-2">
                         Step 1: Get SignalWire Account
                       </div>
@@ -501,7 +501,7 @@ export default function DemoIVRPage() {
                       </a>
                     </div>
                     
-                    <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                    <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                       <div className="text-blue-600 dark:text-blue-400 font-semibold text-sm mb-2">
                         Step 2: Access API Credentials
                       </div>
@@ -513,7 +513,7 @@ export default function DemoIVRPage() {
                       </div>
                     </div>
                     
-                    <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                    <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                       <div className="text-blue-600 dark:text-blue-400 font-semibold text-sm mb-2">
                         Step 3: Connect & Demo
                       </div>
@@ -540,7 +540,7 @@ export default function DemoIVRPage() {
             </div>
 
             {/* Credentials Input */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] p-6">
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
@@ -627,9 +627,9 @@ export default function DemoIVRPage() {
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 mb-4">
+                  <div className="bg-gray-50 dark:bg-[rgb(10,15,26)] rounded-lg p-3 mb-4">
                     <div className="text-xs text-gray-600 dark:text-gray-300">
-                      <strong>🔒 Security:</strong> Your credentials are only used to connect to your SignalWire space and generate WebRTC tokens. 
+                      <strong>🔒 Security:</strong> Your credentials are only used to connect to your SignalWire space and generate WebRTC tokens.
                       They're never stored permanently and only exist in your browser session.
                     </div>
                   </div>
@@ -644,7 +644,7 @@ export default function DemoIVRPage() {
                       !credentials.projectId ||
                       !credentials.apiToken
                     }
-                    className="h-12 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700
+                    className="h-12 px-6 bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] hover:from-[rgb(3,54,171)] hover:to-[rgb(255,90,146)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] dark:hover:from-[rgb(255,90,146)] dark:hover:to-[rgb(183,217,255)]
                              text-white font-semibold rounded-lg shadow-lg
                              disabled:opacity-50 disabled:cursor-not-allowed
                              transition-all duration-150 hover:shadow-xl hover:scale-105 active:scale-95
@@ -752,7 +752,7 @@ export default function DemoIVRPage() {
 
         {/* Prompt Input Section - Only show when logged in */}
         {isLoggedIn && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] p-6 mb-6">
             <div className="flex items-start space-x-4">
               <div className="flex-shrink-0">
                 <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
@@ -820,7 +820,7 @@ export default function DemoIVRPage() {
                 <button
                   onClick={handleGenerateAndCall}
                   disabled={isGenerating || isCallActive || !prompt.trim()}
-                  className="h-12 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700
+                  className="h-12 px-6 bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] hover:from-[rgb(3,54,171)] hover:to-[rgb(255,90,146)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] dark:hover:from-[rgb(255,90,146)] dark:hover:to-[rgb(183,217,255)]
                            text-white font-semibold rounded-lg shadow-lg
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-150 hover:shadow-xl hover:scale-105 active:scale-95
@@ -845,8 +845,8 @@ export default function DemoIVRPage() {
 
         {/* Video Display Section */}
         {isLoggedIn && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-4 py-3">
+          <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] px-4 py-3">
               <div className="flex items-center space-x-2">
                 <User className="text-white" size={18} />
                 <h3 className="text-sm font-semibold text-white">AI Agent Video</h3>
@@ -858,12 +858,12 @@ export default function DemoIVRPage() {
                 )}
               </div>
             </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-900">
+            <div className="p-4 bg-gray-50 dark:bg-[rgb(5,9,16)]">
               {/* Video container - SignalWire SDK will automatically create and attach video elements here */}
               <div
                 id="video-container"
                 ref={videoElementRef}
-                className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden"
+                className="relative w-full aspect-video bg-gray-900 dark:bg-[rgb(5,9,16)] rounded-lg overflow-hidden"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -890,8 +890,8 @@ export default function DemoIVRPage() {
             <TranscriptPanel transcript={transcript} isActive={isCallActive} />
 
             {/* System Events Panel */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-3">
+            <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 dark:from-emerald-700 dark:to-teal-700 px-4 py-3">
                 <div className="flex items-center space-x-2">
                   <Zap className="text-white" size={18} />
                   <h3 className="text-sm font-semibold text-white">
@@ -917,7 +917,7 @@ export default function DemoIVRPage() {
                               ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                               : event.type === "agent"
                                 ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
-                                : "bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
+                                : "bg-gray-50 dark:bg-[rgb(10,15,26)] text-gray-700 dark:text-gray-300"
                         }`}
                       >
                         <span className="font-mono opacity-50">
@@ -933,8 +933,8 @@ export default function DemoIVRPage() {
 
             {/* Agent Events Panel */}
             {agentEvents.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-4 py-3">
+              <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] overflow-hidden">
+                <div className="bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] px-4 py-3">
                   <div className="flex items-center space-x-2">
                     <MessageSquare className="text-white" size={18} />
                     <h3 className="text-sm font-semibold text-white">
