@@ -8,8 +8,31 @@
  */
 
 @layer base {
-  /* Light Mode (Default) */
-  :root,
+  /* Force Dark Mode as Default */
+  :root {
+    /* Backgrounds - Dark mode values */
+    --bg-primary: 5, 9, 16; /* Charcoal */
+    --bg-secondary: 10, 15, 26; /* Darker variant */
+    --bg-tertiary: 26, 31, 40; /* Lighter variant */
+    --bg-hover: 51, 57, 73; /* Hover state */
+
+    /* Text Colors - Dark mode values */
+    --text-primary: 255, 255, 255; /* White */
+    --text-secondary: 190, 195, 201; /* Grey 6 */
+    --text-tertiary: 141, 150, 158; /* Grey 4 */
+    --text-disabled: 85, 96, 106; /* Grey 2 */
+
+    /* Borders & Strokes - Dark mode values */
+    --border: 58, 65, 73; /* Darker border */
+    --border-light: 85, 96, 106; /* Grey 2 */
+
+    /* Accent Colors - Pink primary in dark mode (per guidelines) */
+    --accent-primary: 247, 42, 114; /* SignalWire Pink */
+    --accent-secondary: 183, 217, 255; /* Breeze */
+    --accent-hover: 255, 90, 146; /* Lighter pink */
+  }
+
+  /* Light Mode (kept for future use but not active) */
   .light {
     /* Backgrounds */
     --bg-primary: 255, 255, 255; /* White */
@@ -33,7 +56,7 @@
     --accent-hover: 3, 54, 171; /* Deep Sea */
   }
 
-  /* Dark Mode */
+  /* Dark Mode - Same as root for consistency */
   .dark {
     /* Backgrounds */
     --bg-primary: 5, 9, 16; /* Charcoal */
@@ -64,8 +87,37 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
+  /* Force dark background in dark mode */
+  .dark body {
+    background-color: #050910;
+  }
+
+  /* Force dark mode on HTML element */
+  html {
+    @apply dark;
+  }
+
   input, textarea, select, button {
     @apply outline-none focus:outline-none;
+  }
+
+  /* Futuristic glow effects */
+  @keyframes glow-pulse {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(247, 42, 114, 0.3), 0 0 40px rgba(4, 78, 244, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(247, 42, 114, 0.5), 0 0 60px rgba(4, 78, 244, 0.3);
+    }
+  }
+
+  .glow-border {
+    position: relative;
+    border: 1px solid rgba(183, 217, 255, 0.2);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(247, 42, 114, 0.2), 0 0 40px rgba(4, 78, 244, 0.1);
   }
 }
 

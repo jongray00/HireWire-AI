@@ -15,7 +15,7 @@ export default function CodeViewer({ code, isGenerating }) {
   };
 
   return (
-    <div className="bg-white dark:bg-sw-charcoal-700 rounded-xl shadow-lg border border-gray-200 dark:border-sw-border-dark overflow-hidden h-full">
+    <div className="bg-sw-charcoal-700 rounded-xl shadow-2xl border border-sw-breeze/10 glow-accent overflow-hidden h-full">
       {/* Header */}
       <div className="bg-gradient-to-r from-sw-blue to-sw-pink dark:from-sw-pink dark:to-sw-breeze px-4 py-3">
         <div className="flex items-center justify-between">
@@ -28,7 +28,7 @@ export default function CodeViewer({ code, isGenerating }) {
           {code && (
             <button
               onClick={handleCopy}
-              className="flex items-center space-x-1 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors duration-150"
+              className="flex items-center space-x-1 px-3 py-1 bg-sw-charcoal-900/50 hover:bg-sw-charcoal-900 border border-sw-breeze/20 rounded-lg transition-all duration-150"
             >
               {copied ? (
                 <>
@@ -64,7 +64,7 @@ export default function CodeViewer({ code, isGenerating }) {
             </p>
           </div>
         ) : (
-          <pre className="p-4 text-xs leading-relaxed font-mono bg-gray-900 dark:bg-sw-charcoal-900 text-gray-100 overflow-x-auto">
+          <pre className="p-4 text-xs leading-relaxed font-mono bg-sw-charcoal-900 text-gray-100 overflow-x-auto border-t border-sw-breeze/10">
             <code className="language-python">{code}</code>
           </pre>
         )}
@@ -72,7 +72,7 @@ export default function CodeViewer({ code, isGenerating }) {
 
       {/* Footer with syntax info */}
       {code && (
-        <div className="bg-gray-100 dark:bg-sw-charcoal-800 px-4 py-2 border-t border-gray-200 dark:border-sw-border-dark">
+        <div className="bg-sw-charcoal-800 px-4 py-2 border-t border-sw-breeze/10">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Python • SignalWire Agents SDK

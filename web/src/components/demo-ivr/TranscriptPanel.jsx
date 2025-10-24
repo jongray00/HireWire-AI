@@ -14,7 +14,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
   }, [transcript]);
 
   return (
-    <div className="bg-white dark:bg-sw-charcoal-700 rounded-xl shadow-lg border border-gray-200 dark:border-sw-border-dark overflow-hidden">
+    <div className="bg-sw-charcoal-700 rounded-xl shadow-2xl border border-sw-breeze/10 glow-accent overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-sw-blue to-sw-pink dark:from-sw-pink dark:to-sw-breeze px-4 py-3">
         <div className="flex items-center justify-between">
@@ -36,7 +36,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
       {/* Transcript Messages */}
       <div
         ref={scrollRef}
-        className="h-[500px] overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-sw-charcoal-800"
+        className="h-[500px] overflow-y-auto p-4 space-y-3 bg-sw-charcoal-800"
       >
         {transcript.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
@@ -53,7 +53,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
             if (isSystem) {
               return (
                 <div key={idx} className="flex justify-center">
-                  <div className="bg-gray-200 dark:bg-sw-charcoal-700 px-4 py-2 rounded-full">
+                  <div className="bg-sw-charcoal-700 px-4 py-2 rounded-full border border-sw-breeze/20">
                     <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
                       {message.text}
                     </p>
@@ -77,7 +77,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
                   className={`max-w-[75%] ${
                     isUser
                       ? 'bg-sw-pink dark:bg-sw-pink text-white'
-                      : 'bg-white dark:bg-sw-charcoal-700 text-gray-900 dark:text-white border border-gray-200 dark:border-sw-border-dark'
+                      : 'bg-sw-charcoal-700 text-white border border-sw-breeze/20'
                   } rounded-lg px-4 py-2 shadow-sm`}
                 >
                   <div className="flex items-baseline space-x-2 mb-1">
@@ -108,7 +108,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
 
       {/* Footer */}
       {transcript.length > 0 && (
-        <div className="bg-gray-100 dark:bg-sw-charcoal-800 px-4 py-2 border-t border-gray-200 dark:border-sw-border-dark">
+        <div className="bg-sw-charcoal-800 px-4 py-2 border-t border-sw-breeze/10">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {transcript.length} message{transcript.length !== 1 ? 's' : ''}
           </p>
