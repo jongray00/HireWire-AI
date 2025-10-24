@@ -19,11 +19,6 @@ import ResourceSelector from "@/components/demo-ivr/ResourceSelector";
 import CallOptionsModal from "@/components/demo-ivr/CallOptionsModal";
 import * as SignalWire from "@signalwire/js";
 
-export const meta = () => [
-  { title: "SignalWire AI IVR Demo" },
-  { name: "description", content: "Configure your phone menu with natural language" },
-];
-
 const EXAMPLE_PROMPTS = [
   "I run a pizza shop. Customers should be able to: 1) Order pizza with size and toppings, 2) Check delivery status by order number, 3) Speak to a manager",
   "I'm a dental office. Callers can: 1) Schedule an appointment, 2) Check appointment status, 3) Ask about services, 4) Talk to the receptionist",
