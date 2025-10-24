@@ -10,7 +10,8 @@
       "Bash(pkill:*)",
       "Bash(npm uninstall:*)",
       "Bash(cat:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npx tailwindcss:*)"
     ],
     "deny": [],
     "ask": []
