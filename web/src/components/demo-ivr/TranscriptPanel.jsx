@@ -14,9 +14,9 @@ export default function TranscriptPanel({ transcript, isActive }) {
   }, [transcript]);
 
   return (
-    <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] overflow-hidden">
+    <div className="bg-white dark:bg-sw-charcoal-700 rounded-xl shadow-lg border border-gray-200 dark:border-sw-border-dark overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] px-4 py-3">
+      <div className="bg-gradient-to-r from-sw-blue to-sw-pink dark:from-sw-pink dark:to-sw-breeze px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <MessageSquare className="text-white" size={18} />
@@ -36,7 +36,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
       {/* Transcript Messages */}
       <div
         ref={scrollRef}
-        className="h-[500px] overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-[rgb(10,15,26)]"
+        className="h-[500px] overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-sw-charcoal-800"
       >
         {transcript.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
@@ -53,7 +53,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
             if (isSystem) {
               return (
                 <div key={idx} className="flex justify-center">
-                  <div className="bg-gray-200 dark:bg-[rgb(26,31,40)] px-4 py-2 rounded-full">
+                  <div className="bg-gray-200 dark:bg-sw-charcoal-700 px-4 py-2 rounded-full">
                     <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
                       {message.text}
                     </p>
@@ -68,7 +68,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
                 className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start space-x-2`}
               >
                 {isAI && (
-                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-[rgb(247,42,114)] to-[rgb(183,217,255)] rounded-full flex items-center justify-center">
+                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-sw-pink to-sw-breeze rounded-full flex items-center justify-center">
                     <Bot size={16} className="text-white" />
                   </div>
                 )}
@@ -76,8 +76,8 @@ export default function TranscriptPanel({ transcript, isActive }) {
                 <div
                   className={`max-w-[75%] ${
                     isUser
-                      ? 'bg-[rgb(247,42,114)] dark:bg-[rgb(247,42,114)] text-white'
-                      : 'bg-white dark:bg-[rgb(26,31,40)] text-gray-900 dark:text-white border border-gray-200 dark:border-[rgb(58,65,73)]'
+                      ? 'bg-sw-pink dark:bg-sw-pink text-white'
+                      : 'bg-white dark:bg-sw-charcoal-700 text-gray-900 dark:text-white border border-gray-200 dark:border-sw-border-dark'
                   } rounded-lg px-4 py-2 shadow-sm`}
                 >
                   <div className="flex items-baseline space-x-2 mb-1">
@@ -108,7 +108,7 @@ export default function TranscriptPanel({ transcript, isActive }) {
 
       {/* Footer */}
       {transcript.length > 0 && (
-        <div className="bg-gray-100 dark:bg-[rgb(10,15,26)] px-4 py-2 border-t border-gray-200 dark:border-[rgb(58,65,73)]">
+        <div className="bg-gray-100 dark:bg-sw-charcoal-800 px-4 py-2 border-t border-gray-200 dark:border-sw-border-dark">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {transcript.length} message{transcript.length !== 1 ? 's' : ''}
           </p>

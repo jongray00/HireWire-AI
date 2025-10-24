@@ -15,9 +15,9 @@ export default function CodeViewer({ code, isGenerating }) {
   };
 
   return (
-    <div className="bg-white dark:bg-[rgb(26,31,40)] rounded-xl shadow-lg border border-gray-200 dark:border-[rgb(58,65,73)] overflow-hidden h-full">
+    <div className="bg-white dark:bg-sw-charcoal-700 rounded-xl shadow-lg border border-gray-200 dark:border-sw-border-dark overflow-hidden h-full">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[rgb(4,78,244)] to-[rgb(247,42,114)] dark:from-[rgb(247,42,114)] dark:to-[rgb(183,217,255)] px-4 py-3">
+      <div className="bg-gradient-to-r from-sw-blue to-sw-pink dark:from-sw-pink dark:to-sw-breeze px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Code className="text-white" size={18} />
@@ -50,7 +50,7 @@ export default function CodeViewer({ code, isGenerating }) {
       <div className="h-[calc(100vh-400px)] min-h-[500px] overflow-y-auto">
         {isGenerating ? (
           <div className="h-full flex flex-col items-center justify-center p-8">
-            <div className="w-12 h-12 border-4 border-[rgb(247,42,114)] border-t-transparent rounded-full animate-spin mb-4"></div>
+            <div className="w-12 h-12 border-4 border-sw-pink border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
               Generating agent configuration...
             </p>
@@ -64,7 +64,7 @@ export default function CodeViewer({ code, isGenerating }) {
             </p>
           </div>
         ) : (
-          <pre className="p-4 text-xs leading-relaxed font-mono bg-gray-900 dark:bg-[rgb(5,9,16)] text-gray-100 overflow-x-auto">
+          <pre className="p-4 text-xs leading-relaxed font-mono bg-gray-900 dark:bg-sw-charcoal-900 text-gray-100 overflow-x-auto">
             <code className="language-python">{code}</code>
           </pre>
         )}
@@ -72,7 +72,7 @@ export default function CodeViewer({ code, isGenerating }) {
 
       {/* Footer with syntax info */}
       {code && (
-        <div className="bg-gray-100 dark:bg-[rgb(10,15,26)] px-4 py-2 border-t border-gray-200 dark:border-[rgb(58,65,73)]">
+        <div className="bg-gray-100 dark:bg-sw-charcoal-800 px-4 py-2 border-t border-gray-200 dark:border-sw-border-dark">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Python • SignalWire Agents SDK

@@ -16,6 +16,16 @@ module.exports = {
 					breeze: '#b7d9ff',
 					deepSea: '#0336ab',
 					charcoal: '#050910',
+					// Dark mode charcoal variants
+					'charcoal-900': '#050910', // Primary background
+					'charcoal-800': '#0a0f1a', // Secondary background
+					'charcoal-700': '#1a1f28', // Panel/card background
+					'charcoal-600': '#333949', // Lighter variant
+					// Border colors for dark mode
+					'border-dark': '#3a4149',
+					'border-light': '#55606a',
+					// Accent hover states
+					'pink-light': '#ff5a92',
 					grey: {
 						2: '#55606a',
 						4: '#8d969e',
