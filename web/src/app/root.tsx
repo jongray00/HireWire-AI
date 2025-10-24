@@ -409,23 +409,6 @@ export function Layout({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  const theme = localStorage.getItem('signalwire-theme');
-                  const themeValue = theme ? JSON.parse(theme).state.theme : 'dark';
-                  document.documentElement.classList.add(themeValue);
-                  document.documentElement.setAttribute('data-theme', themeValue);
-                } catch (e) {
-                  document.documentElement.classList.add('dark');
-                  document.documentElement.setAttribute('data-theme', 'dark');
-                }
-              })();
-            `,
-          }}
-        />
         <Meta />
         <Links />
         {/* <LoadFonts /> */}
@@ -433,7 +416,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <body suppressHydrationWarning>
         <ThemeProvider>
           <HydrationErrorBoundary>
-            <ClientOnly loader={() => children} />
+            {children}
           </HydrationErrorBoundary>
           <HotReloadIndicator />
           <Toaster position="bottom-right" />
