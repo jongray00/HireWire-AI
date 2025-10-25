@@ -101,8 +101,9 @@ export default defineConfig({
     },
   },
   define: {
-    'process.env.NEXT_PUBLIC_CREATE_HOST': JSON.stringify('jonnykarate.ngrok.io'),
-    'process.env.NEXT_PUBLIC_CREATE_BASE_URL': JSON.stringify('https://jonnykarate.ngrok.io'),
-    'process.env.CORS_ORIGINS': JSON.stringify('https://jonnykarate.ngrok.io,http://localhost:5000'),
+    // Use environment variables for flexible deployment across different platforms
+    'process.env.NEXT_PUBLIC_CREATE_HOST': JSON.stringify(process.env.NEXT_PUBLIC_CREATE_HOST || 'localhost:5000'),
+    'process.env.NEXT_PUBLIC_CREATE_BASE_URL': JSON.stringify(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000'),
+    'process.env.CORS_ORIGINS': JSON.stringify(process.env.CORS_ORIGINS || 'http://localhost:5000'),
   },
 });

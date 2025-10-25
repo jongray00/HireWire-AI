@@ -1,14 +1,14 @@
 import { startTransition, StrictMode } from 'react';
-import { hydrateRoot } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import './global.css';
 import { injectCriticalStyles } from './utils/inlineStyles';
 
-// Force CSS injection before React hydration
+// Force CSS injection before React renders
 const forceLoadCSS = () => {
   // First inject inline styles
   injectCriticalStyles();
-  
+
   // Method 1: Create a link tag with timestamp to bust cache
   const cssLink = document.createElement('link');
   cssLink.rel = 'stylesheet';
@@ -27,7 +27,7 @@ const forceLoadCSS = () => {
   document.documentElement.style.display = '';
 };
 
-// Clean browser extension attributes before hydration
+// Clean browser extension attributes before rendering
 const cleanExtensionAttributes = () => {
   const attrs = [
     'data-new-gr-c-s-check-loaded',
@@ -36,7 +36,7 @@ const cleanExtensionAttributes = () => {
     'data-grammarly-shadow-root',
     'translate'
   ];
-  
+
   [document.documentElement, document.body].forEach(el => {
     if (el) {
       attrs.forEach(attr => el.removeAttribute(attr));
@@ -47,15 +47,20 @@ const cleanExtensionAttributes = () => {
 // Inject critical styles IMMEDIATELY on page load
 injectCriticalStyles();
 
-// Initialize before React hydration
+// Initialize before React renders
 cleanExtensionAttributes();
 forceLoadCSS();
 
-// Wait a moment for styles to load, then hydrate
+// Clear any server-rendered content and use client-only rendering
+if (document.body) {
+  document.body.innerHTML = '';
+}
+
+// Wait a moment for styles to load, then render (client-only, no hydration)
 setTimeout(() => {
   startTransition(() => {
-    hydrateRoot(
-      document,
+    const root = createRoot(document);
+    root.render(
       <StrictMode>
         <HydratedRouter />
       </StrictMode>

@@ -1,8 +1,6 @@
 import {
-  Links,
   Outlet,
   Scripts,
-  ScrollRestoration,
   useAsyncError,
   useLocation,
   useRouteError,
@@ -36,10 +34,6 @@ import { HotReloadIndicator } from '../__create/HotReload';
 import { useSandboxStore } from '../__create/hmr-sandbox-store';
 import type { Route } from './+types/root';
 import { useDevServerHeartbeat } from '../__create/useDevServerHeartbeat';
-
-export const links = () => [
-  { rel: 'icon', href: '/src/__create/favicon.png' },
-];
 
 if (globalThis.window && globalThis.window !== undefined) {
   globalThis.window.fetch = fetch;
@@ -408,19 +402,29 @@ export function Layout({ children }: { children: ReactNode }) {
       <head suppressHydrationWarning>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/src/__create/favicon.png" />
         <title>SignalWire AI IVR Demo</title>
-        {/* <Links /> removed - was causing hydration errors */}
-        {/* <LoadFonts /> */}
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            // Force client-side rendering only - clear any SSR artifacts
+            if (typeof window !== 'undefined') {
+              window.__DISABLE_SSR__ = true;
+            }
+          `
+        }} />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider>
-          <HydrationErrorBoundary>
-            {children}
-          </HydrationErrorBoundary>
-          <HotReloadIndicator />
-          <Toaster position="bottom-right" />
-        </ThemeProvider>
-        <ScrollRestoration />
+        <div id="root" suppressHydrationWarning>
+          <ClientOnly loader={() => (
+            <ThemeProvider>
+              <HydrationErrorBoundary>
+                {children}
+              </HydrationErrorBoundary>
+              <HotReloadIndicator />
+              <Toaster position="bottom-right" />
+            </ThemeProvider>
+          )} />
+        </div>
         <Scripts />
       </body>
     </html>

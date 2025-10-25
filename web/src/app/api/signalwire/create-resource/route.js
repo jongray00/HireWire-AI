@@ -5,7 +5,9 @@
  * with the webhook pointing to the Python backend
  */
 
-const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:3030';
+import { getSwmlWebhookUrl } from '../utils/getBaseUrl.js';
+
+const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
 export async function POST(request) {
   try {
@@ -34,7 +36,8 @@ export async function POST(request) {
     // The webhook URL pointing to SWML endpoint
     // SignalWire doesn't support BasicAuth in webhook URLs, so we use unauthenticated URL
     // The Next.js proxy at /api/swml will add BasicAuth headers before forwarding to Python backend
-    const webhookUrl = `https://jonnykarate.ngrok.io/api/swml`;
+    // Dynamically construct webhook URL based on current request to support any hosting environment
+    const webhookUrl = getSwmlWebhookUrl(request);
 
     console.log('Creating new SWML Script resource:', displayName);
 

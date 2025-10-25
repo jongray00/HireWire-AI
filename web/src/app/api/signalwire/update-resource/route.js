@@ -5,7 +5,9 @@
  * with the webhook pointing to the Python backend
  */
 
-const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:3030';
+import { getSwmlWebhookUrl } from '../utils/getBaseUrl.js';
+
+const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
 export async function POST(request) {
   try {
@@ -31,8 +33,8 @@ export async function POST(request) {
     const baseUrl = `https://${normalizedSpaceUrl}`;
     const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
 
-    // The webhook URL pointing to Python backend
-    const webhookUrl = `https://jonnykarate.ngrok.io/swml`;
+    // Dynamically construct webhook URL based on current request to support any hosting environment
+    const webhookUrl = getSwmlWebhookUrl(request);
 
     console.log('Updating SWML Script resource:', resourceId);
 
