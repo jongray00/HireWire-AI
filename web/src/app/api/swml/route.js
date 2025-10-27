@@ -3,13 +3,14 @@
  *
  * This route proxies all requests to the Python backend that serves SWML
  * for the SignalWire AI agent. This allows SignalWire to access the SWML
- * at jonnykarate.ngrok.io/swml while the Python backend runs on localhost:3030.
+ * at the public URL /api/swml while the Python backend runs on localhost:8000.
+ * The proxy adds BasicAuth headers for the Python backend.
  */
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const PYTHON_BACKEND_URL = 'http://localhost:3030';
+const PYTHON_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
 /**
  * Read current agent credentials from the file written by Python backend
@@ -38,11 +39,12 @@ async function handleRequest(request) {
     const url = new URL(request.url);
 
     // Strip /api from the pathname to get /swml
-    // url.pathname will be /api/swml, we want to forward to /swml
+    // url.pathname will be /api/swml, we want to forward to /swml/
+    // Note: FastAPI requires trailing slash, so we append it
     const targetPath = url.pathname.replace('/api', '');
 
-    // Build the proxied URL
-    const backendUrl = `${PYTHON_BACKEND_URL}${targetPath}${url.search}`;
+    // Build the proxied URL with trailing slash for FastAPI
+    const backendUrl = `${PYTHON_BACKEND_URL}${targetPath}/${url.search}`;
 
     console.log(`[SWML Proxy] ${request.method} ${url.pathname} -> ${backendUrl}`);
 

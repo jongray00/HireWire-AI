@@ -11,7 +11,12 @@
       "Bash(npm uninstall:*)",
       "Bash(cat:*)",
       "Bash(rm:*)",
-      "Bash(npx tailwindcss:*)"
+      "Bash(npx tailwindcss:*)",
+      "Bash(echo:*)",
+      "Bash(printenv:*)",
+      "Bash(python:*)",
+      "Bash(npm run dev:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

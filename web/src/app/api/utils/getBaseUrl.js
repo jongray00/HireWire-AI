@@ -6,12 +6,36 @@
  * (localhost, ngrok, Replit, production) without hardcoding URLs.
  */
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+/**
+ * Read agent credentials from the file written by Python backend
+ * @returns {{username: string, password: string, app_domain: string} | null}
+ */
+function getAgentCredentials() {
+  try {
+    const credentialsPath = join(process.cwd(), 'agent-credentials.json');
+    const credentialsData = readFileSync(credentialsPath, 'utf-8');
+    return JSON.parse(credentialsData);
+  } catch (error) {
+    console.error('[getBaseUrl] Error reading agent credentials:', error.message);
+    return null;
+  }
+}
+
 /**
  * Extracts the base URL from the incoming request
  * @param {Request} request - The incoming request object
  * @returns {string} The base URL (e.g., 'https://example.com' or 'https://example.com/demo-ivr')
  */
 export function getBaseUrl(request) {
+  // First check if there's an APP_DOMAIN in agent credentials (from .env)
+  const credentials = getAgentCredentials();
+  if (credentials && credentials.app_domain) {
+    return credentials.app_domain;
+  }
+
   // Check if there's an environment variable override
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
@@ -34,11 +58,28 @@ export function getBaseUrl(request) {
 }
 
 /**
- * Constructs the SWML webhook URL based on the current request
+ * Constructs the SWML webhook URL with embedded credentials
  * @param {Request} request - The incoming request object
- * @returns {string} The full webhook URL (e.g., 'https://example.com/api/swml')
+ * @returns {string} The full webhook URL (e.g., 'https://username:password@example.com/api/swml')
  */
 export function getSwmlWebhookUrl(request) {
+  const credentials = getAgentCredentials();
   const baseUrl = getBaseUrl(request);
+
+  // If we have credentials, embed them in the URL
+  if (credentials && credentials.username && credentials.password) {
+    // Parse the base URL to insert credentials
+    const url = new URL(baseUrl);
+
+    // Construct URL with embedded credentials
+    // Format: https://username:password@domain/api/swml
+    const authenticatedUrl = `${url.protocol}//${credentials.username}:${credentials.password}@${url.host}/api/swml`;
+
+    console.log('[getSwmlWebhookUrl] Constructed authenticated webhook URL');
+    return authenticatedUrl;
+  }
+
+  // Fallback to URL without credentials
+  console.warn('[getSwmlWebhookUrl] No credentials found, using URL without authentication');
   return `${baseUrl}/api/swml`;
 }

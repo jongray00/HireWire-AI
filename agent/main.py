@@ -12,10 +12,11 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Disable BasicAuth BEFORE importing signalwire_agents
-# SignalWire doesn't support auth credentials in webhook URLs
-os.environ['SWML_BASIC_AUTH_USER'] = ''
-os.environ['SWML_BASIC_AUTH_PASSWORD'] = ''
+# Load credentials and domain from .env
+# These will be used by the SignalWire agent SDK for authentication
+SWML_USER = os.getenv('SWML_BASIC_AUTH_USER', 'signalwire')
+SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD', 'signalwire')
+APP_DOMAIN = os.getenv('APP_DOMAIN', '')
 
 from signalwire_agents import AgentBase, SwaigFunctionResult
 from fastapi import FastAPI, Request, HTTPException
@@ -41,7 +42,12 @@ agent_config: Dict[str, Any] = {
 agent_instance = None
 
 # Store agent credentials globally for the health endpoint
-agent_credentials = {"username": "signalwire", "password": ""}
+# Initialize with values from .env
+agent_credentials = {
+    "username": SWML_USER,
+    "password": SWML_PASSWORD,
+    "app_domain": APP_DOMAIN
+}
 
 
 class SallySalesAgent(AgentBase):
@@ -186,7 +192,9 @@ Keep responses conversational and natural. Don't read off menu options unless sp
                     "success": True,
                     "config": agent_config,
                     "credentials": agent_credentials,
-                    "swml_url": f"https://{agent_credentials['username']}:{agent_credentials['password']}@jonnykarate.ngrok.io/api/swml" if agent_credentials['password'] else None
+                    # SWML URL is dynamically constructed by the Next.js frontend based on where it's accessed
+                    # This allows the app to work on any hosting platform (ngrok, Replit, production, etc.)
+                    "swml_url": "/api/swml"  # Relative path - frontend will construct full URL
                 }
 
             @app.get("/api/agent-info")
@@ -261,39 +269,11 @@ Keep responses conversational and natural. Don't read off menu options unless sp
                 # Remove any BasicAuth dependencies
                 router.dependencies = [dep for dep in router.dependencies if 'BasicAuth' not in str(type(dep))]
 
-            # Store credentials for agent-info endpoint
-            # Search through all attributes to find the password
+            # Credentials are loaded from .env file
+            # No need to search for SDK-generated passwords
             global agent_credentials
-
-            logger.info("Starting password search in agent attributes...")
-            logger.info(f"Agent attributes: {list(self.__dict__.keys())}")
-
-            for key, value in self.__dict__.items():
-                if isinstance(value, str) and len(value) == 43:
-                    cleaned = value.replace('-', '').replace('_', '')
-                    if cleaned.isalnum() and len(cleaned) > 30:  # At least 30 alphanumeric chars
-                        agent_credentials["password"] = value
-                        logger.info(f"✓ Found password in attribute: {key} = {value}")
-                        break
-                elif isinstance(value, str) and len(value) > 40 and len(value) < 50:
-                    logger.info(f"  Checked {key} (len={len(value)}): {value[:20]}...")
-
-            # Also check nested objects
-            if not agent_credentials["password"]:
-                logger.info("Password not found in agent attributes, checking service object...")
-                if hasattr(self, 'service'):
-                    logger.info(f"Service attributes: {list(self.service.__dict__.keys())}")
-                    for key, value in self.service.__dict__.items():
-                        if isinstance(value, str) and len(value) == 43:
-                            cleaned = value.replace('-', '').replace('_', '')
-                            if cleaned.isalnum() and len(cleaned) > 30:
-                                agent_credentials["password"] = value
-                                logger.info(f"✓ Found password in service.{key} = {value}")
-                                break
-                        elif isinstance(value, str) and len(value) > 40 and len(value) < 50:
-                            logger.info(f"  Checked service.{key} (len={len(value)}): {value[:20]}...")
-
-            logger.info(f"Password search complete. Found: {bool(agent_credentials['password'])}")
+            logger.info(f"Using credentials from .env: {agent_credentials['username']}:***")
+            logger.info(f"APP_DOMAIN from .env: {agent_credentials['app_domain']}")
 
             # Mount the SWML router at /swml
             app.include_router(router, prefix=self.route)
@@ -572,38 +552,27 @@ if __name__ == "__main__":
     logger.info("Agent will be available at: /swml")
     logger.info("Config API available at: /api/update-config")
 
-    # Create and serve agent on port 3030
+    # Create and serve agent on port 8000
     agent = SallySalesAgent()
 
-    # Extract password from agent and store globally
-    logger.info("Extracting password from agent...")
+    # Write credentials from .env to file for web app to read
+    logger.info("Writing credentials from .env to agent-credentials.json...")
 
-    # Check _basic_auth attribute (it's a tuple of (username, password))
-    if hasattr(agent, '_basic_auth') and agent._basic_auth:
-        logger.info(f"Found _basic_auth: {type(agent._basic_auth)}")
-
-        if isinstance(agent._basic_auth, tuple) and len(agent._basic_auth) == 2:
-            username, password = agent._basic_auth
-            agent_credentials["username"] = username
-            agent_credentials["password"] = password
-            logger.info(f"✓ Extracted credentials: {username}:{password}")
-
-            # Write credentials to file for web app to read
-            import os
-            credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
-            with open(credentials_file, 'w') as f:
-                json.dump({
-                    "username": username,
-                    "password": password,
-                    "swml_url": f"https://{username}:{password}@jonnykarate.ngrok.io/api/swml",
-                    "timestamp": datetime.now().isoformat()
-                }, f, indent=2)
-            logger.info(f"✓ Wrote credentials to: {credentials_file}")
-
-        elif isinstance(agent._basic_auth, tuple):
-            logger.info(f"_basic_auth is a tuple with {len(agent._basic_auth)} elements: {agent._basic_auth}")
-
-    logger.info(f"Password extracted: {bool(agent_credentials['password'])}")
+    credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
+    with open(credentials_file, 'w') as f:
+        json.dump({
+            "username": agent_credentials["username"],
+            "password": agent_credentials["password"],
+            "app_domain": agent_credentials["app_domain"],
+            # SWML URL will be constructed using the app_domain from .env
+            # Format: https://username:password@domain/api/swml
+            "swml_url": f"{agent_credentials['app_domain']}/api/swml" if agent_credentials['app_domain'] else "/api/swml",
+            "timestamp": datetime.now().isoformat()
+        }, f, indent=2)
+    logger.info(f"✓ Wrote credentials to: {credentials_file}")
+    logger.info(f"✓ Username: {agent_credentials['username']}")
+    logger.info(f"✓ Password: {agent_credentials['password'][:10]}...")
+    logger.info(f"✓ App Domain: {agent_credentials['app_domain']}")
 
     # IMPORTANT: Call get_app() before serve() to ensure our custom endpoints are registered
     # The serve() method in the SDK checks if self._app is None, and if so, creates a default app

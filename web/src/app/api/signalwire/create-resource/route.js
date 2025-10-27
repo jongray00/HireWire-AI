@@ -5,7 +5,8 @@
  * with the webhook pointing to the Python backend
  */
 
-import { getSwmlWebhookUrl } from '../utils/getBaseUrl.js';
+import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
+import { verifyAndCorrectSwmlWebhook } from '@/app/api/utils/verifySwml.js';
 
 const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
@@ -38,6 +39,26 @@ export async function POST(request) {
     // The Next.js proxy at /api/swml will add BasicAuth headers before forwarding to Python backend
     // Dynamically construct webhook URL based on current request to support any hosting environment
     const webhookUrl = getSwmlWebhookUrl(request);
+
+    // Verify webhook URL before creating resource
+    console.log('🔍 Verifying SWML webhook before creating resource...');
+    const verification = await verifyAndCorrectSwmlWebhook(webhookUrl);
+
+    if (!verification.success) {
+      console.error('❌ SWML webhook verification failed!');
+      return Response.json(
+        {
+          error: 'SWML webhook verification failed',
+          message: verification.error,
+          suggestion: verification.suggestion,
+          diagnostics: verification.diagnostics
+        },
+        { status: 500 }
+      );
+    }
+
+    const verifiedWebhookUrl = verification.url;
+    console.log('✅ SWML webhook verified successfully');
 
     console.log('Creating new SWML Script resource:', displayName);
 
@@ -75,7 +96,7 @@ export async function POST(request) {
       body: JSON.stringify({
         name: 'sally-sales', // Fixed name for addressing
         display_name: displayName, // Human-readable name for UI
-        primary_request_url: webhookUrl,
+        primary_request_url: verifiedWebhookUrl,
         primary_request_method: 'GET'
       })
     });
@@ -95,7 +116,8 @@ export async function POST(request) {
     return Response.json({
       success: true,
       resource,
-      webhookUrl,
+      webhookUrl: verifiedWebhookUrl,
+      verification: verification.diagnostics,
       message: 'SWML Webhook resource created successfully'
     });
 

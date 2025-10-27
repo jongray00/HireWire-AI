@@ -7,7 +7,8 @@
  * 3. Returns the resource address for the frontend to call
  */
 
-import { getSwmlWebhookUrl } from '../utils/getBaseUrl.js';
+import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
+import { verifyAndCorrectSwmlWebhook } from '@/app/api/utils/verifySwml.js';
 
 const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
@@ -169,6 +170,36 @@ export async function POST(request) {
     // The Next.js proxy at /api/swml will add BasicAuth headers before forwarding to Python backend
     // Dynamically construct webhook URL based on current request to support any hosting environment
     const webhookUrl = getSwmlWebhookUrl(request);
+
+    // CRITICAL: Verify webhook URL before updating SignalWire resource
+    // This prevents setting an incorrect URL that would break calls
+    console.log('🔍 Verifying SWML webhook before updating SignalWire resource...');
+    const verification = await verifyAndCorrectSwmlWebhook(webhookUrl);
+
+    if (!verification.success) {
+      console.error('❌ SWML webhook verification failed!');
+      console.error('Error:', verification.error);
+      console.error('Diagnostics:', JSON.stringify(verification.diagnostics, null, 2));
+
+      return Response.json(
+        {
+          error: 'SWML webhook verification failed',
+          message: verification.error,
+          suggestion: verification.suggestion,
+          diagnostics: verification.diagnostics,
+          webhookUrl
+        },
+        { status: 500 }
+      );
+    }
+
+    // Use corrected URL if verification made adjustments
+    const verifiedWebhookUrl = verification.url;
+    console.log('✅ SWML webhook verified successfully');
+    if (verifiedWebhookUrl !== webhookUrl) {
+      console.log(`🔧 URL auto-corrected: ${webhookUrl} → ${verifiedWebhookUrl}`);
+    }
+
     let resource;
     let resourceAction;
 
@@ -269,7 +300,7 @@ export async function POST(request) {
         body: JSON.stringify({
           name: 'sally-sales', // Fixed name for consistent addressing
           display_name: 'sally-sales', // Fixed display_name to ensure we can find it later
-          primary_request_url: webhookUrl,
+          primary_request_url: verifiedWebhookUrl,
           primary_request_method: 'GET'
         })
       });
@@ -301,7 +332,7 @@ export async function POST(request) {
         body: JSON.stringify({
           name: resourceName, // Fixed name for addressing
           display_name: resourceDisplayName, // Human-readable name for UI
-          primary_request_url: webhookUrl,
+          primary_request_url: verifiedWebhookUrl,
           primary_request_method: 'GET'
         })
       });
@@ -339,11 +370,11 @@ export async function POST(request) {
         console.log(`   Webhook URL: ${verifiedResource.primary_request_url}`);
 
         // Check if the URL matches what we set
-        if (verifiedResource.primary_request_url === webhookUrl) {
+        if (verifiedResource.primary_request_url === verifiedWebhookUrl) {
           console.log('✅ VERIFIED: Webhook URL matches! SWML endpoint correctly configured.');
         } else {
           console.log('⚠️  WARNING: Webhook URL DOES NOT MATCH!');
-          console.log(`   Expected: ${webhookUrl}`);
+          console.log(`   Expected: ${verifiedWebhookUrl}`);
           console.log(`   Got: ${verifiedResource.primary_request_url}`);
         }
       } else {
@@ -359,7 +390,7 @@ export async function POST(request) {
     // For SWML scripts, we can dial them via /public/{name} or /{subscriber}/{name}
     const callTo = `/public/sally-sales`; // Using public address for simplicity
 
-    console.log(`SWML endpoint configured at: ${webhookUrl}`);
+    console.log(`SWML endpoint configured at: ${verifiedWebhookUrl}`);
     console.log(`Resource ${resourceAction}: ${resource.display_name}`);
     console.log(`Call address: ${callTo}`);
 
@@ -373,10 +404,11 @@ export async function POST(request) {
         type: resource.type
       },
       resourceAction,
-      agentUrl: webhookUrl,
-      swmlEndpoint: webhookUrl,
+      agentUrl: verifiedWebhookUrl,
+      swmlEndpoint: verifiedWebhookUrl,
       callTo,
       backendConfig: backendData.config,
+      verification: verification.diagnostics,
       message: `Agent ${resourceAction}. Call ${callTo} to connect.`
     });
 
