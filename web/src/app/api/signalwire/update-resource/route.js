@@ -12,7 +12,7 @@ const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:800
 
 export async function POST(request) {
   try {
-    const { resourceId, displayName, credentials, prompt } = await request.json();
+    const { resourceId, displayName, credentials, prompt, resourceType, updates, webhookUrl: customWebhookUrl } = await request.json();
 
     if (!resourceId || !credentials) {
       return Response.json(
@@ -34,28 +34,38 @@ export async function POST(request) {
     const baseUrl = `https://${normalizedSpaceUrl}`;
     const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
 
-    // Dynamically construct webhook URL based on current request to support any hosting environment
-    const webhookUrl = getSwmlWebhookUrl(request);
+    // Determine webhook URL to use
+    let verifiedWebhookUrl = null;
+    let verification = null;
 
-    // Verify webhook URL before updating resource
-    console.log('🔍 Verifying SWML webhook before updating resource...');
-    const verification = await verifyAndCorrectSwmlWebhook(webhookUrl);
+    // If custom webhook URL provided, use it
+    if (customWebhookUrl) {
+      verifiedWebhookUrl = customWebhookUrl;
+      console.log('Using custom webhook URL:', customWebhookUrl);
+    } else {
+      // Dynamically construct webhook URL based on current request to support any hosting environment
+      const webhookUrl = getSwmlWebhookUrl(request);
 
-    if (!verification.success) {
-      console.error('❌ SWML webhook verification failed!');
-      return Response.json(
-        {
-          error: 'SWML webhook verification failed',
-          message: verification.error,
-          suggestion: verification.suggestion,
-          diagnostics: verification.diagnostics
-        },
-        { status: 500 }
-      );
+      // Verify webhook URL before updating resource
+      console.log('🔍 Verifying SWML webhook before updating resource...');
+      verification = await verifyAndCorrectSwmlWebhook(webhookUrl);
+
+      if (!verification.success) {
+        console.error('❌ SWML webhook verification failed!');
+        return Response.json(
+          {
+            error: 'SWML webhook verification failed',
+            message: verification.error,
+            suggestion: verification.suggestion,
+            diagnostics: verification.diagnostics
+          },
+          { status: 500 }
+        );
+      }
+
+      verifiedWebhookUrl = verification.url;
+      console.log('✅ SWML webhook verified successfully');
     }
-
-    const verifiedWebhookUrl = verification.url;
-    console.log('✅ SWML webhook verified successfully');
 
     console.log('Updating SWML Script resource:', resourceId);
 
@@ -103,33 +113,47 @@ export async function POST(request) {
     const currentResource = await getResponse.json();
     console.log('Current resource type:', currentResource.type);
 
+    // Determine resource type (use provided type or detected type)
+    const effectiveResourceType = resourceType || currentResource.type;
+
     // Update based on resource type
     let updateUrl;
     let updateBody = {};
     let updateMethod = 'PATCH';
 
-    if (currentResource.type === 'swml_webhook') {
-      updateUrl = `${baseUrl}/api/fabric/resources/swml_webhooks/${resourceId}`;
-      updateBody = {
-        primary_request_url: verifiedWebhookUrl,
-        primary_request_method: 'GET'
-      };
-
-      if (displayName) {
-        updateBody.name = displayName;
-      }
-    } else if (currentResource.type === 'swml_script') {
-      // Legacy support for SWML Scripts (inline content)
-      return Response.json(
-        { error: 'SWML Scripts cannot be updated to webhooks. Please create a new SWML Webhook resource.' },
-        { status: 400 }
-      );
+    // If custom updates object provided, use it directly
+    if (updates && Object.keys(updates).length > 0) {
+      updateUrl = `${baseUrl}/api/fabric/resources/${effectiveResourceType}/${resourceId}`;
+      updateBody = updates;
+      console.log('Using custom updates:', updateBody);
     } else {
-      // For other resource types, we might need different update logic
-      return Response.json(
-        { error: `Resource type ${currentResource.type} update not yet supported` },
-        { status: 400 }
-      );
+      // Legacy/default behavior
+      if (currentResource.type === 'swml_webhook' || effectiveResourceType === 'swml_webhooks') {
+        updateUrl = `${baseUrl}/api/fabric/resources/swml_webhooks/${resourceId}`;
+        updateBody = {
+          primary_request_url: verifiedWebhookUrl,
+          primary_request_method: 'GET'
+        };
+
+        if (displayName) {
+          updateBody.display_name = displayName;
+          updateBody.name = displayName.toLowerCase().replace(/\s+/g, '-');
+        }
+      } else if (currentResource.type === 'swml_script') {
+        // Legacy support for SWML Scripts (inline content)
+        return Response.json(
+          { error: 'SWML Scripts cannot be updated to webhooks. Please create a new SWML Webhook resource.' },
+          { status: 400 }
+        );
+      } else {
+        // For other resource types, attempt generic update
+        updateUrl = `${baseUrl}/api/fabric/resources/${effectiveResourceType}/${resourceId}`;
+        updateBody = {};
+
+        if (displayName) {
+          updateBody.display_name = displayName;
+        }
+      }
     }
 
     // Update the SWML Webhook resource
@@ -158,8 +182,8 @@ export async function POST(request) {
       success: true,
       resource,
       webhookUrl: verifiedWebhookUrl,
-      verification: verification.diagnostics,
-      message: 'SWML Webhook resource updated successfully'
+      verification: verification?.diagnostics,
+      message: `Resource ${resourceId} updated successfully`
     });
 
   } catch (error) {

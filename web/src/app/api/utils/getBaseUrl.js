@@ -60,11 +60,15 @@ export function getBaseUrl(request) {
 /**
  * Constructs the SWML webhook URL with embedded credentials
  * @param {Request} request - The incoming request object
+ * @param {string} [path=''] - Optional path to append (e.g., '/swml/employee_id/')
  * @returns {string} The full webhook URL (e.g., 'https://username:password@example.com/api/swml')
  */
-export function getSwmlWebhookUrl(request) {
+export function getSwmlWebhookUrl(request, path = '') {
   const credentials = getAgentCredentials();
   const baseUrl = getBaseUrl(request);
+
+  // Construct the full path
+  const fullPath = path ? `/api${path}` : '/api/swml';
 
   // If we have credentials, embed them in the URL
   if (credentials && credentials.username && credentials.password) {
@@ -72,14 +76,14 @@ export function getSwmlWebhookUrl(request) {
     const url = new URL(baseUrl);
 
     // Construct URL with embedded credentials
-    // Format: https://username:password@domain/api/swml
-    const authenticatedUrl = `${url.protocol}//${credentials.username}:${credentials.password}@${url.host}/api/swml`;
+    // Format: https://username:password@domain/api/swml or /api/swml/{employee_id}
+    const authenticatedUrl = `${url.protocol}//${credentials.username}:${credentials.password}@${url.host}${fullPath}`;
 
-    console.log('[getSwmlWebhookUrl] Constructed authenticated webhook URL');
+    console.log('[getSwmlWebhookUrl] Constructed authenticated webhook URL:', authenticatedUrl);
     return authenticatedUrl;
   }
 
   // Fallback to URL without credentials
   console.warn('[getSwmlWebhookUrl] No credentials found, using URL without authentication');
-  return `${baseUrl}/api/swml`;
+  return `${baseUrl}${fullPath}`;
 }

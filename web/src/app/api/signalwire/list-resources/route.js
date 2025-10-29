@@ -3,54 +3,72 @@
  *
  * This route fetches all dialable resources from SignalWire Fabric API
  * and categorizes them by type (SWML Scripts, AI Agents, Conference Rooms, etc.)
+ *
+ * Supports both GET and POST methods
+ * Query params (GET): ?type=swml_webhooks (optional filter)
+ * Body (POST): { credentials, type? }
  */
 
-export async function POST(request) {
-  try {
-    const { credentials } = await request.json();
+// Helper function to get resource name for addressing
+function getResourceName(resource) {
+  // Priority: name > display_name > id
+  return resource.name || resource.display_name?.toLowerCase().replace(/\s+/g, '-') || resource.id;
+}
 
-    if (!credentials) {
-      return Response.json(
-        { error: 'Missing credentials' },
-        { status: 400 }
-      );
+// Helper function to generate callable address
+function getResourceAddress(resource, addressType = 'public') {
+  const name = getResourceName(resource);
+  return `/${addressType}/${name}`;
+}
+
+async function handleRequest(credentials, typeFilter = null) {
+  if (!credentials) {
+    return Response.json(
+      { error: 'Missing credentials' },
+      { status: 400 }
+    );
+  }
+
+  const { spaceUrl, projectId, apiToken } = credentials;
+
+  if (!spaceUrl || !projectId || !apiToken) {
+    return Response.json(
+      { error: 'Missing required credentials' },
+      { status: 400 }
+    );
+  }
+
+  const normalizedSpaceUrl = spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const baseUrl = `https://${normalizedSpaceUrl}`;
+  const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
+
+  console.log('Fetching resources from SignalWire...', typeFilter ? `(filter: ${typeFilter})` : '');
+
+  // Fetch from specific type endpoint if filter provided, otherwise get all
+  let fetchUrl = `${baseUrl}/api/fabric/resources`;
+  if (typeFilter) {
+    fetchUrl = `${baseUrl}/api/fabric/resources/${typeFilter}`;
+  }
+
+  const resourcesResponse = await fetch(fetchUrl, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Basic ${basicAuth}`,
+      'Content-Type': 'application/json'
     }
+  });
 
-    const { spaceUrl, projectId, apiToken } = credentials;
+  if (!resourcesResponse.ok) {
+    const errorText = await resourcesResponse.text();
+    console.error('Failed to fetch resources:', resourcesResponse.status, errorText);
+    return Response.json(
+      { error: 'Failed to fetch resources from SignalWire' },
+      { status: resourcesResponse.status }
+    );
+  }
 
-    if (!spaceUrl || !projectId || !apiToken) {
-      return Response.json(
-        { error: 'Missing required credentials' },
-        { status: 400 }
-      );
-    }
-
-    const normalizedSpaceUrl = spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const baseUrl = `https://${normalizedSpaceUrl}`;
-    const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
-
-    console.log('Fetching resources from SignalWire...');
-
-    // Fetch resources from SignalWire Fabric API
-    const resourcesResponse = await fetch(`${baseUrl}/api/fabric/resources`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${basicAuth}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!resourcesResponse.ok) {
-      const errorText = await resourcesResponse.text();
-      console.error('Failed to fetch resources:', resourcesResponse.status, errorText);
-      return Response.json(
-        { error: 'Failed to fetch resources from SignalWire' },
-        { status: resourcesResponse.status }
-      );
-    }
-
-    const resourcesData = await resourcesResponse.json();
-    console.log('Resources fetched:', resourcesData.data?.length || 0);
+  const resourcesData = await resourcesResponse.json();
+  console.log('Resources fetched:', resourcesData.data?.length || 0);
 
     // Categorize resources by type
     const categorized = {
@@ -82,14 +100,26 @@ export async function POST(request) {
         return; // Skip non-dialable resources
       }
 
+      const resourceName = getResourceName(resource);
+      const publicAddress = getResourceAddress(resource, 'public');
+      const privateAddress = getResourceAddress(resource, 'private');
+
       const resourceInfo = {
         id: resource.id,
+        name: resource.name,
         display_name: resource.display_name,
         type: resource.type,
         created_at: resource.created_at,
         updated_at: resource.updated_at,
+        // Callable address information
+        resourceName: resourceName,
+        publicAddress: publicAddress,
+        privateAddress: privateAddress,
+        callable: true,
         // Include type-specific data
-        details: resource[resource.type] || null
+        details: resource[resource.type] || null,
+        // For SWML webhooks, include webhook URL
+        webhookUrl: resource.swml_webhook?.primary_request_url || null,
       };
 
       switch (resource.type) {
@@ -127,9 +157,44 @@ export async function POST(request) {
       success: true,
       total: resources.length,
       categorized,
-      all: resources.filter(r => dialableTypes.includes(r.type))
+      all: resources.filter(r => dialableTypes.includes(r.type)),
+      filtered: typeFilter !== null,
+      filterType: typeFilter
     });
+}
 
+export async function POST(request) {
+  try {
+    const { credentials, type } = await request.json();
+    return await handleRequest(credentials, type);
+  } catch (error) {
+    console.error('Error listing resources:', error);
+    return Response.json(
+      { error: 'Failed to list resources: ' + error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request) {
+  try {
+    // Get credentials from query params or headers
+    const url = new URL(request.url);
+    const typeFilter = url.searchParams.get('type');
+
+    // For GET, we expect credentials to be passed differently
+    // You might want to use session-based auth here instead
+    const session = request.headers.get('x-session-data');
+
+    if (!session) {
+      return Response.json(
+        { error: 'Missing session data. Use POST method with credentials in body.' },
+        { status: 400 }
+      );
+    }
+
+    const sessionData = JSON.parse(session);
+    return await handleRequest(sessionData.credentials, typeFilter);
   } catch (error) {
     console.error('Error listing resources:', error);
     return Response.json(
