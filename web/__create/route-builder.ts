@@ -51,13 +51,24 @@ function getHonoPath(routeFile: string): { name: string; pattern: string }[] {
     return [{ name: 'root', pattern: '' }];
   }
   const transformedParts = routeParts.map((segment) => {
-    const match = segment.match(/^\[(\.{3})?([^\]]+)\]$/);
-    if (match) {
-      const [_, dots, param] = match;
+    // Handle [[...param]] (optional catch-all) or [[param]] (optional)
+    const doubleMatch = segment.match(/^\[\[(\.{3})?([^\]]+)\]\]$/);
+    if (doubleMatch) {
+      const [_, dots, param] = doubleMatch;
       return dots === '...'
-        ? { name: param, pattern: `:${param}{.+}` }
-        : { name: param, pattern: `:${param}` };
+        ? { name: param, pattern: `:${param}{.*}` }  // Optional catch-all uses {.*} to allow empty
+        : { name: param, pattern: `:${param}?` };    // Optional param
     }
+
+    // Handle [...param] (required catch-all) or [param] (required)
+    const singleMatch = segment.match(/^\[(\.{3})?([^\]]+)\]$/);
+    if (singleMatch) {
+      const [_, dots, param] = singleMatch;
+      return dots === '...'
+        ? { name: param, pattern: `:${param}{.+}` }  // Required catch-all
+        : { name: param, pattern: `:${param}` };      // Required param
+    }
+
     return { name: segment, pattern: segment };
   });
   return transformedParts;
@@ -83,7 +94,7 @@ async function registerRoutes() {
     try {
       const route = await import(/* @vite-ignore */ `${routeFile}?update=${Date.now()}`);
 
-      const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+      const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
       for (const method of methods) {
         try {
           if (route[method]) {
@@ -103,18 +114,31 @@ async function registerRoutes() {
             switch (methodLowercase) {
               case 'get':
                 api.get(honoPath, handler);
+                console.log(`[Route] Registered GET ${honoPath}`);
                 break;
               case 'post':
                 api.post(honoPath, handler);
+                console.log(`[Route] Registered POST ${honoPath}`);
                 break;
               case 'put':
                 api.put(honoPath, handler);
+                console.log(`[Route] Registered PUT ${honoPath}`);
                 break;
               case 'delete':
                 api.delete(honoPath, handler);
+                console.log(`[Route] Registered DELETE ${honoPath}`);
                 break;
               case 'patch':
                 api.patch(honoPath, handler);
+                console.log(`[Route] Registered PATCH ${honoPath}`);
+                break;
+              case 'head':
+                api.on('HEAD', honoPath, handler);
+                console.log(`[Route] Registered HEAD ${honoPath}`);
+                break;
+              case 'options':
+                api.on('OPTIONS', honoPath, handler);
+                console.log(`[Route] Registered OPTIONS ${honoPath}`);
                 break;
               default:
                 console.warn(`Unsupported method: ${method}`);

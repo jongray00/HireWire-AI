@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import nodeConsole from 'node:console';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { skipCSRFCheck } from '@auth/core';
 import Credentials from '@auth/core/providers/credentials';
 import { authHandler, initAuthConfig } from '@hono/auth-js';
@@ -18,6 +20,22 @@ import { getHTMLForErrorPage } from './get-html-for-error-page';
 import { isAuthAction } from './is-auth-action';
 import { API_BASENAME, api } from './route-builder';
 neonConfig.webSocketConstructor = ws;
+
+/**
+ * Read current agent credentials from the file written by Python backend
+ * @returns {string} The credentials in the format "username:password"
+ */
+function getAgentCredentials(): string {
+  try {
+    const credentialsPath = join(process.cwd(), 'agent-credentials.json');
+    const credentialsData = readFileSync(credentialsPath, 'utf-8');
+    const credentials = JSON.parse(credentialsData);
+    return `${credentials.username}:${credentials.password}`;
+  } catch (error) {
+    console.error('[Auth] Error reading agent credentials:', error);
+    return 'signalwire:signalwire';
+  }
+}
 
 const als = new AsyncLocalStorage<{ requestId: string }>();
 
@@ -233,6 +251,65 @@ app.use('/api/auth/*', async (c, next) => {
   }
   return next();
 });
+
+// Direct SWML proxy route - ensures SWML endpoints work for SignalWire webhooks
+// This bypasses file-based routing to guarantee the endpoint is accessible
+app.all('/api/swml/:employeeId{.*}', async (c) => {
+  const employeeId = c.req.param('employeeId');
+  const pythonBackendUrl = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
+
+  // Construct the backend URL, ensuring proper path formatting
+  let backendPath = `/swml/${employeeId}`;
+  if (!backendPath.endsWith('/')) {
+    backendPath += '/';
+  }
+
+  const backendUrl = `${pythonBackendUrl}${backendPath}`;
+  const queryString = c.req.url.includes('?') ? c.req.url.split('?')[1] : '';
+  const fullBackendUrl = queryString ? `${backendUrl}?${queryString}` : backendUrl;
+
+  console.log(`[SWML Proxy] ${c.req.method} /api/swml/${employeeId} -> ${fullBackendUrl}`);
+
+  try {
+    // Get agent credentials for Basic Auth
+    const authCredentials = getAgentCredentials();
+    const base64Auth = Buffer.from(authCredentials).toString('base64');
+
+    // Proxy the request to the Python backend
+    const response = await fetch(fullBackendUrl, {
+      method: c.req.method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${base64Auth}`,
+        'X-Forwarded-Host': c.req.header('host') || '',
+        'X-Forwarded-Proto': c.req.header('x-forwarded-proto') || 'https',
+      },
+      body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+      // @ts-ignore - this key is accepted even if types not aware and is
+      // required for streaming requests with body
+      duplex: 'half',
+    });
+
+    const body = await response.text();
+    console.log(`[SWML Proxy] Response ${response.status} from Python backend`);
+
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  } catch (error) {
+    console.error('[SWML Proxy] Error proxying to Python backend:', error);
+    return c.json(
+      {
+        error: 'Failed to proxy SWML request',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
+  }
+});
+
 app.route(API_BASENAME, api);
 
 export default await createHonoServer({
