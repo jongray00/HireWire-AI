@@ -506,6 +506,103 @@ class VirtualEmployeeAgent(AgentBase):
         return result
 
     @AgentBase.tool(
+        name="send_email",
+        description="Send a follow-up email to the caller. Collects their email address and sends a message with call details, confirmations, or any relevant information.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "to_email": {
+                    "type": "string",
+                    "description": "The recipient's email address"
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "Email subject line"
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Email body content — include call summary, action items, or relevant details"
+                }
+            },
+            "required": ["to_email", "subject", "body"]
+        }
+    )
+    def send_email(self, args, raw_data):
+        """Send an email via SendGrid"""
+        to_email = args.get("to_email", "")
+        subject = args.get("subject", "")
+        body = args.get("body", "")
+
+        sendgrid_api_key = self.employee_config.get("sendgrid_api_key", "") or os.getenv("SENDGRID_API_KEY", "")
+        from_email = self.employee_config.get("email_from_address", "")
+        from_name = self.employee_config.get("email_from_name", "") or self.employee_config.get("name", "Agent")
+
+        logger.info(f"[{self.employee_id}] Email requested to {to_email} from {from_email or 'NOT CONFIGURED'}")
+
+        if not to_email or "@" not in to_email:
+            return SwaigFunctionResult(
+                "I need a valid email address to send to. Could you please provide your email?"
+            )
+
+        if not sendgrid_api_key or not from_email:
+            logger.warning(f"[{self.employee_id}] Email skipped — SendGrid not configured")
+            result = SwaigFunctionResult(
+                "Email isn't set up for this agent yet. Let me take a note of your request instead."
+            )
+            result.update_global_data({
+                "email_requested": {
+                    "to": to_email,
+                    "subject": subject,
+                    "body": body[:500],
+                    "status": "not_configured"
+                }
+            })
+            return result
+
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
+
+            message = Mail(
+                from_email=(from_email, from_name),
+                to_emails=to_email,
+                subject=subject or f"Follow-up from {from_name}",
+                plain_text_content=body
+            )
+
+            sg = SendGridAPIClient(sendgrid_api_key)
+            response = sg.send(message)
+
+            logger.info(f"[{self.employee_id}] Email sent to {to_email}, status: {response.status_code}")
+
+            result = SwaigFunctionResult(f"I've sent an email to {to_email}.")
+            result.update_global_data({
+                "email_sent": {
+                    "to": to_email,
+                    "subject": subject,
+                    "status": "sent",
+                    "status_code": response.status_code
+                }
+            })
+            return result
+
+        except Exception as e:
+            logger.error(f"[{self.employee_id}] Email send failed: {e}")
+            result = SwaigFunctionResult(
+                "I'm sorry, I wasn't able to send the email right now. I've noted your request for our team."
+            )
+            result.update_global_data({
+                "email_requested": {
+                    "to": to_email,
+                    "subject": subject,
+                    "body": body[:500],
+                    "status": "failed",
+                    "error": str(e)[:200]
+                }
+            })
+            return result
+
+    @AgentBase.tool(
         name="end_call",
         description="End the call politely when the conversation is complete and the caller is ready to hang up",
         parameters={
