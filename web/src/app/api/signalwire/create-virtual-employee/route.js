@@ -4,35 +4,29 @@
  * This route:
  * 1. Sends employee configuration to the Python backend
  * 2. Creates a unique SWML Script resource in SignalWire
- * 3. Returns the resource address for calling the virtual employee
+ * 3. Inserts the employee into the SQLite database
+ * 4. Returns the resource address for calling the virtual employee
  */
 
 import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
 import { verifyAndCorrectSwmlWebhook } from '@/app/api/utils/verifySwml.js';
+import { upsertEmployee, employeeRowToJson } from '@/lib/db';
 
 const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
 function sanitizeResourceName(name) {
   console.log('🔧 Sanitizing resource name:', name);
 
-  // Convert to lowercase and clean up
   let sanitized = name.toLowerCase()
-    // First, replace all non-alphanumeric chars (except spaces) with nothing
     .replace(/[^a-z0-9\s]/g, '')
-    // Then replace spaces with single dash
     .replace(/\s+/g, '-')
-    // Remove any consecutive dashes
     .replace(/-+/g, '-')
-    // Remove leading/trailing dashes
     .replace(/^-+|-+$/g, '')
-    // Limit length
     .substring(0, 30)
-    // Ensure it doesn't end with a dash after substring
     .replace(/-+$/, '');
 
   console.log('✅ Sanitized resource name:', sanitized);
 
-  // Validate: must contain at least one alphanumeric character
   if (!/[a-z0-9]/.test(sanitized)) {
     console.error('❌ Invalid sanitized name (no alphanumeric chars):', sanitized);
     throw new Error('Resource name must contain at least one letter or number');
@@ -68,7 +62,19 @@ export async function POST(request) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(employeeData)
+      body: JSON.stringify({
+        ...employeeData,
+        business_hours_start: employeeData.businessHoursStart ?? employeeData.business_hours_start ?? 9,
+        business_hours_end: employeeData.businessHoursEnd ?? employeeData.business_hours_end ?? 18,
+        business_days: employeeData.businessDays ?? employeeData.business_days ?? [0, 1, 2, 3, 4],
+        documents: employeeData.documents ?? [],
+        sendgrid_api_key: employeeData.sendgridApiKey ?? employeeData.sendgrid_api_key ?? '',
+        email_from_address: employeeData.emailFromAddress ?? employeeData.email_from_address ?? '',
+        email_from_name: employeeData.emailFromName ?? employeeData.email_from_name ?? '',
+        space_name: spaceUrl?.replace(/^https?:\/\//, '').replace(/\/$/, '') || '',
+        project_id: projectId,
+        token: apiToken,
+      })
     });
 
     if (!backendResponse.ok) {
@@ -90,10 +96,8 @@ export async function POST(request) {
     const baseUrl = `https://${spaceUrl}`;
     const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
 
-    // Construct webhook URL pointing to employee-specific SWML endpoint
     const webhookUrl = getSwmlWebhookUrl(request, `/swml/${employeeId}/`);
 
-    // Verify webhook URL
     console.log('🔍 Verifying SWML webhook...');
     const verification = await verifyAndCorrectSwmlWebhook(webhookUrl);
 
@@ -113,14 +117,12 @@ export async function POST(request) {
     const verifiedWebhookUrl = verification.url;
     console.log('✅ SWML webhook verified successfully');
 
-    // Create unique resource name from employee name and ID
     const sanitizedName = sanitizeResourceName(employee.name);
     const resourceName = `employee-${sanitizedName}-${employeeId}`;
     const displayName = employee.name;
 
     console.log(`Creating SWML webhook resource: ${resourceName}`);
 
-    // Create SWML Webhook resource
     const createResponse = await fetch(`${baseUrl}/api/fabric/resources/swml_webhooks`, {
       method: 'POST',
       headers: {
@@ -158,8 +160,42 @@ export async function POST(request) {
     const resource = await createResponse.json();
     console.log('✅ SWML Webhook resource created successfully:', resource.id);
 
-    // Construct the call fabric address
     const callFabricAddress = `/public/${resourceName}`;
+
+    // Step 3: Persist employee to database
+    upsertEmployee({
+      id: employeeId,
+      projectId,
+      name: employee.name,
+      role: employee.role,
+      greeting: employee.greeting,
+      prompt: employee.prompt,
+      voice: employee.voice,
+      language: employee.language,
+      temperature: employee.temperature,
+      speechHints: employee.speech_hints,
+      enabledFunctions: employee.enabled_functions,
+      transferNumber: employee.transfer_number || '',
+      transferFrom: employee.transfer_from || '',
+      smsFromNumber: employee.sms_from_number || '',
+      phoneNumber: employee.phone_number || '',
+      videoIdleUrl: employee.video_idle_url || '',
+      videoTalkingUrl: employee.video_talking_url || '',
+      businessHoursStart: employeeData.business_hours_start ?? employeeData.businessHoursStart ?? 9,
+      businessHoursEnd: employeeData.business_hours_end ?? employeeData.businessHoursEnd ?? 18,
+      businessDays: employeeData.business_days ?? employeeData.businessDays ?? [0, 1, 2, 3, 4],
+      documents: employeeData.documents ?? [],
+      emailProvider: employeeData.email_provider ?? employeeData.emailProvider ?? '',
+      sendgridApiKey: employeeData.sendgrid_api_key ?? employeeData.sendgridApiKey ?? '',
+      emailFromAddress: employeeData.email_from_address ?? employeeData.emailFromAddress ?? '',
+      emailFromName: employeeData.email_from_name ?? employeeData.emailFromName ?? '',
+      resourceId: resource.id,
+      resourceName,
+      callFabricAddress,
+      webhookUrl: verifiedWebhookUrl,
+    });
+
+    console.log(`[DB] Employee ${employeeId} persisted to database`);
 
     console.log(`\n${'='.repeat(60)}`);
     console.log(`📞 VIRTUAL EMPLOYEE CREATED SUCCESSFULLY`);
@@ -173,7 +209,6 @@ export async function POST(request) {
     console.log(`   Webhook URL:       ${verifiedWebhookUrl}`);
     console.log(`${'='.repeat(60)}\n`);
 
-    // Return success with all relevant information
     return Response.json({
       success: true,
       employee: {
