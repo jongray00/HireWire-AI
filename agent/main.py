@@ -280,47 +280,6 @@ class VirtualEmployeeAgent(AgentBase):
         result.connect(number, final=True, from_addr=from_addr)
         return result
 
-    @AgentBase.tool(
-        name="take_message",
-        description="Take a message from the caller including their name, callback number, and message",
-        parameters={
-            "type": "object",
-            "properties": {
-                "caller_name": {
-                    "type": "string",
-                    "description": "The caller's name"
-                },
-                "callback_number": {
-                    "type": "string",
-                    "description": "Phone number to call them back"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "The message the caller wants to leave"
-                }
-            },
-            "required": ["caller_name", "message"]
-        }
-    )
-    def take_message(self, args, raw_data):
-        """Collect caller info and store as global data + fire event to frontend"""
-        caller_name = args.get("caller_name", "Unknown")
-        callback_number = args.get("callback_number", "not provided")
-        message = args.get("message", "")
-
-        logger.info(f"[{self.employee_id}] Message taken from {caller_name}: {message[:80]}")
-
-        result = SwaigFunctionResult(
-            f"I've taken your message, {caller_name}. Someone from our team will get back to you shortly."
-        )
-        result.update_global_data({
-            "message_taken": {
-                "name": caller_name,
-                "number": callback_number,
-                "message": message[:200]
-            }
-        })
-        return result
 
     @staticmethod
     def _clean_phone_number(number: str) -> str:

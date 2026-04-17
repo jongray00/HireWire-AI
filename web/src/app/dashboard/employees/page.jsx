@@ -224,8 +224,7 @@ const LANGUAGE_OPTIONS = [
 // Available functions
 const AVAILABLE_FUNCTIONS = [
   { value: 'transfer_to_human', label: 'Transfer to Human', description: 'Transfer the call to a real phone number' },
-  { value: 'take_message', label: 'Take Message', description: 'Collect caller name, number, and message' },
-  { value: 'send_summary_sms', label: 'Send SMS', description: 'Send text messages — summaries, confirmations, or custom messages' },
+{ value: 'send_summary_sms', label: 'Send SMS', description: 'Send text messages — summaries, confirmations, or custom messages' },
   { value: 'schedule_callback', label: 'Schedule Callback', description: 'Collect callback request details and preferred time' },
   { value: 'check_business_hours', label: 'Check Business Hours', description: 'Report if business is open or closed (configurable hours)' },
   { value: 'collect_customer_info', label: 'Collect Customer Info', description: 'Gather name, email, phone, company — shown in call logs' },
@@ -1596,7 +1595,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
               {/* Business Hours Configuration */}
               {formData.enabled_functions?.includes('check_business_hours') && (
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '0.5rem', border: '1px solid #bbf7d0' }}>
+                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: '0.5rem', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>Business Hours</h4>
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <div>
@@ -1662,7 +1661,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
               {/* Email Configuration (SendGrid) */}
               {formData.enabled_functions?.includes('send_email') && (
-                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fefce8', borderRadius: '0.5rem', border: '1px solid #fde68a' }}>
+                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: '0.5rem', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem' }}>Email Configuration (SendGrid)</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div>
