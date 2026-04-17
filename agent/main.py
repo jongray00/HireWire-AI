@@ -199,11 +199,39 @@ class VirtualEmployeeAgent(AgentBase):
         enabled_functions = self.employee_config.get('enabled_functions', [])
         logger.info(f"Employee {self.employee_id} enabled functions: {enabled_functions}")
 
-        # If enabled_functions is specified, remove tools not in the list
+        # Add DataSphere Serverless skill if search_knowledge is enabled
+        if 'search_knowledge' in enabled_functions:
+            documents = self.employee_config.get('documents', [])
+            space_name = os.getenv('SIGNALWIRE_SPACE', '') or self.employee_config.get('space_name', '')
+            project_id = os.getenv('SIGNALWIRE_PROJECT_ID', '') or self.employee_config.get('project_id', '')
+            token = os.getenv('SIGNALWIRE_TOKEN', '') or self.employee_config.get('token', '')
+
+            if documents and space_name and project_id and token:
+                for doc in documents:
+                    doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc
+                    if doc_id:
+                        self.add_skill("datasphere_serverless", {
+                            "space_name": space_name,
+                            "project_id": project_id,
+                            "token": token,
+                            "document_id": doc_id,
+                            "count": 3,
+                            "distance": 5.0
+                        })
+                        logger.info(f"  Added DataSphere skill for doc: {doc_id}")
+            else:
+                if not documents:
+                    logger.info(f"  search_knowledge enabled but no documents uploaded")
+                else:
+                    logger.warning(f"  search_knowledge enabled but missing DataSphere credentials")
+
+        # Remove SWAIG tools not in the enabled list
+        # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter
+        swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
         if enabled_functions:
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
-                if func_name not in enabled_functions:
+                if func_name not in swaig_functions:
                     self._tool_registry.remove_function(func_name)
                     logger.info(f"  Removed function '{func_name}' (not in enabled list)")
 
@@ -431,18 +459,26 @@ class VirtualEmployeeAgent(AgentBase):
         }
     )
     def check_business_hours(self, args, raw_data):
-        """Return business hours — uses server time"""
+        """Return business hours — uses config or defaults"""
         now = datetime.now()
         hour = now.hour
         weekday = now.weekday()  # 0=Monday, 6=Sunday
 
-        if weekday < 5 and 9 <= hour < 18:
+        start = self.employee_config.get("business_hours_start", 9)
+        end = self.employee_config.get("business_hours_end", 18)
+        days = self.employee_config.get("business_days", [0, 1, 2, 3, 4])
+
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        open_days = [day_names[d] for d in sorted(days)]
+        hours_str = f"{start % 12 or 12} {'AM' if start < 12 else 'PM'} to {end % 12 or 12} {'AM' if end < 12 else 'PM'}"
+
+        if weekday in days and start <= hour < end:
             return SwaigFunctionResult(
-                "We are currently open. Our business hours are Monday through Friday, 9 AM to 6 PM."
+                f"We are currently open. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}."
             )
         else:
             return SwaigFunctionResult(
-                "We are currently closed. Our business hours are Monday through Friday, 9 AM to 6 PM. "
+                f"We are currently closed. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}. "
                 "I can take a message or schedule a callback for when we reopen."
             )
 
@@ -746,6 +782,16 @@ async def create_employee(request: Request):
             "sms_from_number": data.get("sms_from_number", ""),
             "video_idle_url": data.get("video_idle_url", ""),
             "video_talking_url": data.get("video_talking_url", ""),
+            "business_hours_start": data.get("business_hours_start", 9),
+            "business_hours_end": data.get("business_hours_end", 18),
+            "business_days": data.get("business_days", [0, 1, 2, 3, 4]),
+            "documents": data.get("documents", []),
+            "sendgrid_api_key": data.get("sendgrid_api_key", ""),
+            "email_from_address": data.get("email_from_address", ""),
+            "email_from_name": data.get("email_from_name", ""),
+            "space_name": data.get("space_name", ""),
+            "project_id": data.get("project_id", ""),
+            "token": data.get("token", ""),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "status": "active"
@@ -822,6 +868,16 @@ async def update_employee(employee_id: str, request: Request):
             "sms_from_number": data.get("sms_from_number", employee_config.get("sms_from_number", "")),
             "video_idle_url": data.get("video_idle_url", employee_config.get("video_idle_url", "")),
             "video_talking_url": data.get("video_talking_url", employee_config.get("video_talking_url", "")),
+            "business_hours_start": data.get("business_hours_start", employee_config.get("business_hours_start", 9)),
+            "business_hours_end": data.get("business_hours_end", employee_config.get("business_hours_end", 18)),
+            "business_days": data.get("business_days", employee_config.get("business_days", [0, 1, 2, 3, 4])),
+            "documents": data.get("documents", employee_config.get("documents", [])),
+            "sendgrid_api_key": data.get("sendgrid_api_key", employee_config.get("sendgrid_api_key", "")),
+            "email_from_address": data.get("email_from_address", employee_config.get("email_from_address", "")),
+            "email_from_name": data.get("email_from_name", employee_config.get("email_from_name", "")),
+            "space_name": data.get("space_name", employee_config.get("space_name", "")),
+            "project_id": data.get("project_id", employee_config.get("project_id", "")),
+            "token": data.get("token", employee_config.get("token", "")),
             "updated_at": datetime.now().isoformat()
         })
 
