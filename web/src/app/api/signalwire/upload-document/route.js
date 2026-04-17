@@ -1,4 +1,4 @@
-import { getEmployeeById, updateEmployeeDocuments } from '~/lib/db';
+import { getEmployeeById, updateEmployeeDocuments } from '@/lib/db';
 
 export async function POST(request) {
   try {

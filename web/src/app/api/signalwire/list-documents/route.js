@@ -1,4 +1,4 @@
-import { getEmployeeById } from '~/lib/db';
+import { getEmployeeById } from '@/lib/db';
 
 export async function GET(request) {
   try {

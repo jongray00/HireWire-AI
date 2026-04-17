@@ -26,8 +26,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallWidget } from "@/app/hooks/useCallWidget";
-import PhoneNumberPicker from '~/components/dashboard/PhoneNumberPicker';
-import KnowledgeBaseTab from '~/components/dashboard/KnowledgeBaseTab';
+import PhoneNumberPicker from '@/components/dashboard/PhoneNumberPicker';
+import KnowledgeBaseTab from '@/components/dashboard/KnowledgeBaseTab';
 
 // Voice options for SignalWire TTS
 // langs: array of base language codes this voice supports. "all" = fully multilingual.
