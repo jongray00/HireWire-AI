@@ -27,6 +27,20 @@ SWML_USER = os.getenv('SWML_BASIC_AUTH_USER', 'signalwire')
 SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD', 'signalwire')
 APP_DOMAIN = os.getenv('APP_DOMAIN', '')
 
+
+def _detect_ngrok_url() -> Optional[str]:
+    """Query ngrok local API to get the current public tunnel URL."""
+    try:
+        import urllib.request
+        resp = urllib.request.urlopen("http://localhost:4040/api/tunnels", timeout=2)
+        data = json.loads(resp.read())
+        for tunnel in data.get("tunnels", []):
+            if tunnel.get("proto") == "https":
+                return tunnel["public_url"]
+    except Exception:
+        pass
+    return None
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,189 +106,428 @@ class VirtualEmployeeAgent(AgentBase):
         # Configure personality
         self._update_personality()
 
+        # Configure post-prompt for call analytics
+        self._configure_post_prompt()
+
         # Add enabled functions
         self._configure_functions()
 
     def _get_language_name(self, code: str) -> str:
         """Get language name from code"""
         lang_map = {
-            'en-US': 'English',
-            'es-ES': 'Spanish',
-            'fr-FR': 'French',
-            'de-DE': 'German',
-            'it-IT': 'Italian',
-            'pt-BR': 'Portuguese',
-            'ja-JP': 'Japanese',
-            'zh-CN': 'Chinese'
+            'en': 'English', 'en-US': 'English', 'en-GB': 'English',
+            'en-AU': 'English', 'en-IN': 'English', 'en-NZ': 'English',
+            'es': 'Spanish', 'es-ES': 'Spanish', 'es-419': 'Spanish',
+            'fr': 'French', 'fr-FR': 'French', 'fr-CA': 'French',
+            'de': 'German', 'de-DE': 'German',
+            'it': 'Italian', 'it-IT': 'Italian',
+            'pt': 'Portuguese', 'pt-BR': 'Portuguese', 'pt-PT': 'Portuguese',
+            'ja': 'Japanese', 'ja-JP': 'Japanese',
+            'zh': 'Chinese', 'zh-CN': 'Chinese',
+            'ko': 'Korean', 'ko-KR': 'Korean',
+            'hi': 'Hindi',
+            'ru': 'Russian',
+            'nl': 'Dutch',
+            'pl': 'Polish',
+            'sv': 'Swedish', 'sv-SE': 'Swedish',
+            'da': 'Danish', 'da-DK': 'Danish',
+            'tr': 'Turkish',
+            'vi': 'Vietnamese',
+            'uk': 'Ukrainian',
+            'multi': 'Multilingual',
         }
         return lang_map.get(code, 'English')
 
     def _update_personality(self):
-        """Update agent personality from employee config"""
+        """Update agent personality from employee config using POM sections"""
         name = self.employee_config.get('name', 'Assistant')
         role = self.employee_config.get('role', 'Virtual Assistant')
         greeting = self.employee_config.get('greeting', f'Hello, I am {name}.')
         prompt = self.employee_config.get('prompt', '')
 
-        personality = f"""{greeting}
+        # Identity section
+        self.prompt_add_section(
+            "Identity",
+            body=f"You are {name}, a {role}. Your greeting is: \"{greeting}\""
+        )
 
-I am {name}, your {role}.
+        # Main instructions from the user's prompt (may contain markdown sections)
+        if prompt:
+            self.prompt_add_section("Instructions", body=prompt)
 
-{prompt}
+        # Voice interaction guidelines
+        guidelines = [
+            "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
+            "Be conversational and natural, not robotic",
+            "Listen fully before responding",
+            "If you are unsure about something, say so and offer to connect the caller with a human",
+            "Always end interactions with a clear next step",
+        ]
 
-My role is to:
-1. Greet callers professionally and warmly
-2. Listen to their needs carefully
-3. Use the available functions to help them
-4. Provide clear, concise information
-5. Always be polite, professional, and helpful
-6. If I'm unsure about something, offer to connect them to a human representative
+        # Add SMS offer guideline if send_summary_sms is enabled
+        enabled_functions = self.employee_config.get('enabled_functions', [])
+        if 'send_summary_sms' in enabled_functions:
+            guidelines.append(
+                "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
+                "If yes, ask for their phone number, then use the send_summary_sms function."
+            )
 
-I keep responses conversational and natural."""
+        self.prompt_add_section(
+            "Voice Interaction Guidelines",
+            bullets=guidelines
+        )
 
-        self.prompt_add_section("Personality", personality)
-
-        # Set temperature if specified
+        # Set temperature
         temperature = self.employee_config.get('temperature', 0.7)
         self.set_param("temperature", temperature)
+
+    def _configure_post_prompt(self):
+        """Configure post-prompt to generate a structured call summary"""
+        self.set_post_prompt(
+            "Summarize this conversation as JSON with exactly these fields:\n"
+            '- "summary": 2-3 sentence summary of the call\n'
+            '- "caller_intent": what the caller wanted (1 sentence)\n'
+            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
+            '- "sentiment": one of "positive", "neutral", or "negative"\n'
+            '- "topics": array of topic keyword strings\n'
+            '- "follow_up": any action items or follow-up needed (null if none)\n'
+            "Respond ONLY with the JSON object, no extra text."
+        )
 
     def _configure_functions(self):
         """Configure which functions are enabled for this employee"""
         enabled_functions = self.employee_config.get('enabled_functions', [])
         logger.info(f"Employee {self.employee_id} enabled functions: {enabled_functions}")
-        # Functions are defined as decorators below
+
+        # If enabled_functions is specified, remove tools not in the list
+        if enabled_functions:
+            all_functions = list(self._tool_registry.get_all_functions().keys())
+            for func_name in all_functions:
+                if func_name not in enabled_functions:
+                    self._tool_registry.remove_function(func_name)
+                    logger.info(f"  Removed function '{func_name}' (not in enabled list)")
+
+    # ------------------------------------------------------------------
+    # SWAIG Functions — real actions via SwaigFunctionResult
+    # ------------------------------------------------------------------
 
     @AgentBase.tool(
-        name="route_to_order",
-        description="Route caller to order department",
-        parameters={
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": "Reason for routing to this department"
-                }
-            }
-        }
-    )
-    def route_to_order(self, args, raw_data):
-        """Route to order department"""
-        reason = args.get("reason", "General inquiry")
-        logger.info(f"[{self.employee_id}] Routing to order department: {reason}")
-
-        result = SwaigFunctionResult(
-            "I'll connect you with our order team right away. Please hold while I transfer your call."
-        )
-
-        result.swml_user_event({
-            "type": "routing_decision",
-            "employee_id": self.employee_id,
-            "department": "order",
-            "reason": reason,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        return result
-
-    @AgentBase.tool(
-        name="route_to_schedule",
-        description="Route caller to scheduling/appointments department",
-        parameters={
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": "Reason for routing"
-                }
-            }
-        }
-    )
-    def route_to_schedule(self, args, raw_data):
-        """Route to scheduling department"""
-        reason = args.get("reason", "Schedule appointment")
-
-        result = SwaigFunctionResult(
-            "I'll connect you with our scheduling team. One moment please."
-        )
-
-        result.swml_user_event({
-            "type": "routing_decision",
-            "employee_id": self.employee_id,
-            "department": "scheduling",
-            "reason": reason,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        return result
-
-    @AgentBase.tool(
-        name="route_to_support",
-        description="Route caller to customer support",
-        parameters={
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": "Reason for routing"
-                }
-            }
-        }
-    )
-    def route_to_support(self, args, raw_data):
-        """Route to support department"""
-        reason = args.get("reason", "Support request")
-
-        result = SwaigFunctionResult(
-            "I'll connect you with our support team right away."
-        )
-
-        result.swml_user_event({
-            "type": "routing_decision",
-            "employee_id": self.employee_id,
-            "department": "support",
-            "reason": reason,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        return result
-
-    @AgentBase.tool(
-        name="transfer_call",
-        description="Transfer call to a human representative",
+        name="transfer_to_human",
+        description="Transfer the call to a human representative at a real phone number",
         parameters={
             "type": "object",
             "properties": {
                 "department": {
                     "type": "string",
-                    "description": "Department to transfer to",
-                    "default": "general"
+                    "description": "Department to transfer to (e.g. sales, support, general)"
                 },
                 "reason": {
                     "type": "string",
-                    "description": "Reason for transfer"
+                    "description": "Brief reason for the transfer"
                 }
             }
         }
     )
-    def transfer_call(self, args, raw_data):
-        """Transfer call to human"""
+    def transfer_to_human(self, args, raw_data):
+        """Transfer call to a configured phone number"""
         department = args.get("department", "general")
         reason = args.get("reason", "Requested human assistance")
+        number = self.employee_config.get("transfer_number", "")
 
-        logger.info(f"[{self.employee_id}] Transfer requested - Department: {department}, Reason: {reason}")
+        logger.info(f"[{self.employee_id}] Transfer requested to {number or 'NO NUMBER'} - {department}: {reason}")
+
+        if not number:
+            result = SwaigFunctionResult(
+                "I'm sorry, there's no transfer number configured right now. "
+                "Let me take a message instead so someone can call you back."
+            )
+            return result
 
         result = SwaigFunctionResult(
-            f"I'll connect you with a representative from our {department} team. Please hold while I transfer your call."
+            f"I'll connect you with our {department} team now. Please hold.",
+            post_process=True
         )
+        # Use transfer_from if set, otherwise fall back to assigned phone_number
+        from_addr = self.employee_config.get("transfer_from") or self.employee_config.get("phone_number") or None
+        result.connect(number, final=True, from_addr=from_addr)
+        return result
 
-        result.swml_user_event({
-            "type": "transfer_initiated",
-            "employee_id": self.employee_id,
-            "department": department,
-            "reason": reason,
-            "timestamp": datetime.now().isoformat()
+    @AgentBase.tool(
+        name="take_message",
+        description="Take a message from the caller including their name, callback number, and message",
+        parameters={
+            "type": "object",
+            "properties": {
+                "caller_name": {
+                    "type": "string",
+                    "description": "The caller's name"
+                },
+                "callback_number": {
+                    "type": "string",
+                    "description": "Phone number to call them back"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The message the caller wants to leave"
+                }
+            },
+            "required": ["caller_name", "message"]
+        }
+    )
+    def take_message(self, args, raw_data):
+        """Collect caller info and store as global data + fire event to frontend"""
+        caller_name = args.get("caller_name", "Unknown")
+        callback_number = args.get("callback_number", "not provided")
+        message = args.get("message", "")
+
+        logger.info(f"[{self.employee_id}] Message taken from {caller_name}: {message[:80]}")
+
+        result = SwaigFunctionResult(
+            f"I've taken your message, {caller_name}. Someone from our team will get back to you shortly."
+        )
+        result.update_global_data({
+            "message_taken": {
+                "name": caller_name,
+                "number": callback_number,
+                "message": message[:200]
+            }
         })
+        return result
 
+    @staticmethod
+    def _clean_phone_number(number: str) -> str:
+        """Sanitize phone number to E.164 format — strip hyphens, spaces, parens."""
+        import re
+        if not number:
+            return ""
+        cleaned = re.sub(r'[^\d+]', '', number)
+        if cleaned and not cleaned.startswith('+'):
+            cleaned = '+' + cleaned
+        return cleaned
+
+    @AgentBase.tool(
+        name="send_summary_sms",
+        description="Send an SMS text message to the caller's phone number. Can send call summaries, confirmations, follow-ups, or any custom message. Ask for their phone number first.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "phone_number": {
+                    "type": "string",
+                    "description": "The caller's phone number to send the SMS to (E.164 format)"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "The text message to send — can be a call summary, confirmation, or any relevant message"
+                },
+                "caller_info": {
+                    "type": "string",
+                    "description": "Caller name and contact info if provided"
+                }
+            },
+            "required": ["phone_number", "message"]
+        }
+    )
+    def send_summary_sms(self, args, raw_data):
+        """Send an SMS with the call summary to a number the caller provided"""
+        phone_number_raw = args.get("phone_number", "")
+        message = args.get("message", "") or args.get("summary", "No message provided")
+        caller_info = args.get("caller_info", "")
+        from_number = self.employee_config.get("sms_from_number", "")
+
+        # Sanitize phone number to clean E.164
+        phone_number = self._clean_phone_number(phone_number_raw)
+
+        logger.info(f"[{self.employee_id}] SMS summary requested to {phone_number or 'NO NUMBER'} (raw: {phone_number_raw}) from {from_number or 'NO FROM NUMBER'}")
+
+        if not phone_number or len(phone_number) < 10:
+            return SwaigFunctionResult(
+                "I need a valid phone number to send the summary. Could you please provide your full phone number including area code?"
+            )
+
+        if not from_number:
+            logger.warning(f"[{self.employee_id}] SMS skipped — no sms_from_number configured")
+            return SwaigFunctionResult(
+                "I'm sorry, text messaging is not set up for this agent right now. I've noted the summary for our team."
+            )
+
+        # Build SMS body — keep concise to avoid over_data_limit
+        agent_name = self.employee_config.get("name", "Agent")
+        # Truncate message to stay within SMS limits
+        max_message_len = 300
+        if len(message) > max_message_len:
+            message = message[:max_message_len] + "..."
+        parts = [f"[SignalWire] {agent_name} Call Summary:"]
+        if caller_info:
+            parts.append(f"Caller: {caller_info}")
+        parts.append(message)
+        parts.append("REPLY STOP TO STOP")
+        body = "\n".join(parts)
+
+        try:
+            result = SwaigFunctionResult(f"I've sent a text summary to {phone_number_raw}.")
+            result.send_sms(phone_number, from_number, body)
+            return result
+        except Exception as e:
+            logger.error(f"[{self.employee_id}] SMS send failed: {e}")
+            return SwaigFunctionResult(
+                "I'm sorry, I wasn't able to send the text message right now. I've noted the summary for our team instead."
+            )
+
+    @AgentBase.tool(
+        name="schedule_callback",
+        description="Schedule a PHONE CALLBACK for later. Collects name, number, preferred time, and reason. This is NOT for sending text messages — use send_summary_sms for that.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "caller_name": {
+                    "type": "string",
+                    "description": "The caller's name"
+                },
+                "callback_number": {
+                    "type": "string",
+                    "description": "Phone number to call back"
+                },
+                "preferred_time": {
+                    "type": "string",
+                    "description": "When the caller would like to be called back"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for the callback"
+                }
+            },
+            "required": ["caller_name", "callback_number", "preferred_time"]
+        }
+    )
+    def schedule_callback(self, args, raw_data):
+        """Collect callback request details and store them"""
+        caller_name = args.get("caller_name", "")
+        callback_number = args.get("callback_number", "")
+        preferred_time = args.get("preferred_time", "")
+        reason = args.get("reason", "")
+
+        logger.info(f"[{self.employee_id}] Callback scheduled for {caller_name} at {preferred_time}")
+
+        result = SwaigFunctionResult(
+            f"I've scheduled a callback for {caller_name} at {preferred_time}. "
+            "Someone from our team will reach out to you then."
+        )
+        result.update_global_data({
+            "callback": {
+                "name": caller_name,
+                "number": callback_number,
+                "time": preferred_time,
+                "reason": reason[:100]
+            }
+        })
+        return result
+
+    @AgentBase.tool(
+        name="check_business_hours",
+        description="Check if the business is currently open and provide hours information",
+        parameters={
+            "type": "object",
+            "properties": {}
+        }
+    )
+    def check_business_hours(self, args, raw_data):
+        """Return business hours — uses server time"""
+        now = datetime.now()
+        hour = now.hour
+        weekday = now.weekday()  # 0=Monday, 6=Sunday
+
+        if weekday < 5 and 9 <= hour < 18:
+            return SwaigFunctionResult(
+                "We are currently open. Our business hours are Monday through Friday, 9 AM to 6 PM."
+            )
+        else:
+            return SwaigFunctionResult(
+                "We are currently closed. Our business hours are Monday through Friday, 9 AM to 6 PM. "
+                "I can take a message or schedule a callback for when we reopen."
+            )
+
+    @AgentBase.tool(
+        name="collect_customer_info",
+        description="Collect structured customer information during the call. Gather details conversationally — name, email, phone, company, and any notes. Call this once you have collected the relevant details.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The customer's full name"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "The customer's email address"
+                },
+                "phone": {
+                    "type": "string",
+                    "description": "The customer's phone number"
+                },
+                "company": {
+                    "type": "string",
+                    "description": "The customer's company or organization"
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Any additional notes or context from the conversation"
+                }
+            }
+        }
+    )
+    def collect_customer_info(self, args, raw_data):
+        """Collect and store structured customer information"""
+        name = args.get("name", "")
+        email = args.get("email", "")
+        phone = args.get("phone", "")
+        company = args.get("company", "")
+        notes = args.get("notes", "")
+
+        collected_fields = []
+        if name: collected_fields.append(f"name ({name})")
+        if email: collected_fields.append(f"email ({email})")
+        if phone: collected_fields.append(f"phone ({phone})")
+        if company: collected_fields.append(f"company ({company})")
+
+        logger.info(f"[{self.employee_id}] Customer info collected: {', '.join(collected_fields) or 'no fields'}")
+
+        result = SwaigFunctionResult(
+            f"Got it, I've recorded {'your' if name else 'the'} information. Is there anything else I can help with?"
+        )
+        result.update_global_data({
+            "customer_info": {
+                "name": name,
+                "email": email,
+                "phone": phone,
+                "company": company,
+                "notes": notes[:500]
+            }
+        })
+        return result
+
+    @AgentBase.tool(
+        name="end_call",
+        description="End the call politely when the conversation is complete and the caller is ready to hang up",
+        parameters={
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "Reason for ending the call"
+                }
+            }
+        }
+    )
+    def end_call(self, args, raw_data):
+        """Politely end the call"""
+        reason = args.get("reason", "Conversation complete")
+        logger.info(f"[{self.employee_id}] Call ended: {reason}")
+
+        result = SwaigFunctionResult(
+            "Thank you for calling! Have a wonderful day. Goodbye!",
+            post_process=True
+        )
+        result.hangup()
         return result
 
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
@@ -289,25 +542,42 @@ I keep responses conversational and natural."""
             if host and ('localhost' in host or '127.0.0.1' in host):
                 protocol = 'http'
 
-        # If we found a host, update the video URLs
-        if host:
-            base_url = f"{protocol}://{host}"
-            self.set_param("video_idle_file", f"{base_url}/videos/sally_idle.mp4")
-            self.set_param("video_talking_file", f"{base_url}/videos/sally_talking.mp4")
-            logger.info(f"[{self.employee_id}] Set video URLs to use host: {base_url}")
+        # Set video URLs from employee config (or fall back to defaults)
+        base_url = (f"{protocol}://{host}" if host else APP_DOMAIN) or ""
+        idle_url = self.employee_config.get("video_idle_url", "")
+        talking_url = self.employee_config.get("video_talking_url", "")
+
+        # Use config URLs if set, otherwise fall back to default paths
+        if not idle_url and base_url:
+            idle_url = f"{base_url}/videos/sally_idle.mp4"
+        if not talking_url and base_url:
+            talking_url = f"{base_url}/videos/sally_talking.mp4"
+
+        if idle_url:
+            self.set_param("video_idle_file", idle_url)
+        if talking_url:
+            self.set_param("video_talking_file", talking_url)
+
+        if idle_url or talking_url:
+            logger.info(f"[{self.employee_id}] Video URLs: idle={idle_url}, talking={talking_url}")
         else:
-            base_url = APP_DOMAIN or "https://jonnykarate.ngrok.io"
-            self.set_param("video_idle_file", f"{base_url}/videos/sally_idle.mp4")
-            self.set_param("video_talking_file", f"{base_url}/videos/sally_talking.mp4")
+            logger.warning(f"[{self.employee_id}] No video URLs available")
+
+        # Set post_prompt_url — prefer APP_DOMAIN (points to frontend where handler lives)
+        post_prompt_domain = APP_DOMAIN or (f"{protocol}://{host}" if host else None)
+        if post_prompt_domain:
+            post_prompt_path = f"{post_prompt_domain}/api/post-prompt/{self.employee_id}"
+            self.set_post_prompt_url(post_prompt_path)
+            logger.info(f"[{self.employee_id}] Set post_prompt_url to: {post_prompt_path}")
+        else:
+            logger.warning(f"[{self.employee_id}] Cannot set post_prompt_url — no domain available")
 
         # Enable live transcription
-        self.add_verb({
-            "live_transcribe": {
-                "action": "start",
-                "lang": self.employee_config.get('language', 'en-US').split('-')[0],
-                "live_events": True,
-                "direction": ["remote-caller", "local-caller"]
-            }
+        self.add_verb("live_transcribe", {
+            "action": "start",
+            "lang": self.employee_config.get('language', 'en-US').split('-')[0],
+            "live_events": True,
+            "direction": ["remote-caller", "local-caller"]
         })
 
         return super().on_swml_request(request_data, callback_path, request)
@@ -335,6 +605,22 @@ async def bypass_auth(request: Request, call_next):
     return response
 
 
+def _remount_employee_router(employee_id: str, agent: VirtualEmployeeAgent):
+    """Remove old routes for an employee and mount the new agent's router."""
+    prefix = f"/swml/{employee_id}"
+    # Remove existing routes with this prefix
+    app.routes[:] = [
+        r for r in app.routes
+        if not (hasattr(r, 'path') and r.path.startswith(prefix))
+    ]
+    # Mount new router (strip BasicAuth dependencies)
+    router = agent.as_router()
+    if hasattr(router, 'dependencies'):
+        router.dependencies = [dep for dep in router.dependencies if 'BasicAuth' not in str(type(dep))]
+    app.include_router(router, prefix=prefix)
+    logger.info(f"   Mounted router at: {prefix}")
+
+
 # Employee Management API Endpoints
 
 @app.post("/api/create-employee")
@@ -343,8 +629,8 @@ async def create_employee(request: Request):
     try:
         data = await request.json()
 
-        # Generate unique ID
-        employee_id = str(uuid.uuid4())[:8]
+        # Use provided ID (for re-creation after restart) or generate a new one
+        employee_id = data.get("id") or str(uuid.uuid4())[:8]
 
         # Create employee config
         employee_config = {
@@ -357,7 +643,12 @@ async def create_employee(request: Request):
             "language": data.get("language", "en-US"),
             "temperature": data.get("temperature", 0.7),
             "speech_hints": data.get("speech_hints", []),
-            "enabled_functions": data.get("enabled_functions", ["transfer_call"]),
+            "enabled_functions": data.get("enabled_functions", ["transfer_to_human", "send_summary_sms", "end_call"]),
+            "transfer_number": data.get("transfer_number", ""),
+            "transfer_from": data.get("transfer_from", ""),
+            "sms_from_number": data.get("sms_from_number", ""),
+            "video_idle_url": data.get("video_idle_url", ""),
+            "video_talking_url": data.get("video_talking_url", ""),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "status": "active"
@@ -366,15 +657,10 @@ async def create_employee(request: Request):
         # Store employee
         employees[employee_id] = employee_config
 
-        # Create agent instance
+        # Create agent instance and mount router
         agent = VirtualEmployeeAgent(employee_config)
         agent_instances[employee_id] = agent
-
-        # Mount the agent router
-        router = agent.as_router()
-        if hasattr(router, 'dependencies'):
-            router.dependencies = [dep for dep in router.dependencies if 'BasicAuth' not in str(type(dep))]
-        app.include_router(router, prefix=agent.route)
+        _remount_employee_router(employee_id, agent)
 
         logger.info(f"✅ Created virtual employee: {employee_config['name']} ({employee_id})")
         logger.info(f"   Route: /swml/{employee_id}")
@@ -434,12 +720,18 @@ async def update_employee(employee_id: str, request: Request):
             "temperature": data.get("temperature", employee_config["temperature"]),
             "speech_hints": data.get("speech_hints", employee_config["speech_hints"]),
             "enabled_functions": data.get("enabled_functions", employee_config["enabled_functions"]),
+            "transfer_number": data.get("transfer_number", employee_config.get("transfer_number", "")),
+            "transfer_from": data.get("transfer_from", employee_config.get("transfer_from", "")),
+            "sms_from_number": data.get("sms_from_number", employee_config.get("sms_from_number", "")),
+            "video_idle_url": data.get("video_idle_url", employee_config.get("video_idle_url", "")),
+            "video_talking_url": data.get("video_talking_url", employee_config.get("video_talking_url", "")),
             "updated_at": datetime.now().isoformat()
         })
 
-        # Recreate agent instance with new config
+        # Recreate agent instance and remount router
         agent = VirtualEmployeeAgent(employee_config)
         agent_instances[employee_id] = agent
+        _remount_employee_router(employee_id, agent)
 
         logger.info(f"✅ Updated virtual employee: {employee_config['name']} ({employee_id})")
 
@@ -468,6 +760,13 @@ async def delete_employee(employee_id: str = Path(...)):
         # Remove agent instance
         if employee_id in agent_instances:
             del agent_instances[employee_id]
+
+        # Remove routes for this employee
+        prefix = f"/swml/{employee_id}"
+        app.routes[:] = [
+            r for r in app.routes
+            if not (hasattr(r, 'path') and r.path.startswith(prefix))
+        ]
 
         logger.info(f"🗑️  Deleted virtual employee: {employee_name} ({employee_id})")
 
@@ -502,28 +801,31 @@ async def update_config_legacy(request: Request):
                 "language": "en-US",
                 "temperature": 0.7,
                 "speech_hints": [],
-                "enabled_functions": ["transfer_call"],
+                "enabled_functions": ["transfer_to_human", "send_summary_sms", "end_call"],
+                "transfer_number": "",
+                "transfer_from": "",
+                "sms_from_number": "",
+                "video_idle_url": "",
+                "video_talking_url": "",
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
                 "status": "active"
             }
             employees[default_id] = employee_config
 
-            # Create agent
+            # Create agent and mount router
             agent = VirtualEmployeeAgent(employee_config)
             agent_instances[default_id] = agent
-            router = agent.as_router()
-            if hasattr(router, 'dependencies'):
-                router.dependencies = [dep for dep in router.dependencies if 'BasicAuth' not in str(type(dep))]
-            app.include_router(router, prefix=agent.route)
+            _remount_employee_router(default_id, agent)
         else:
             # Update existing
             employees[default_id]["prompt"] = data.get("prompt", employees[default_id]["prompt"])
             employees[default_id]["updated_at"] = datetime.now().isoformat()
 
-            # Recreate agent
+            # Recreate agent and remount router
             agent = VirtualEmployeeAgent(employees[default_id])
             agent_instances[default_id] = agent
+            _remount_employee_router(default_id, agent)
 
         return {
             "success": True,
@@ -545,11 +847,14 @@ async def get_config():
         "created_at": datetime.now().isoformat()
     })
 
+    default_swml_path = f"/swml/{default_id}"
+    swml_url = f"{APP_DOMAIN}{default_swml_path}" if APP_DOMAIN else default_swml_path
+
     return {
         "success": True,
         "config": config,
         "credentials": agent_credentials,
-        "swml_url": "/api/swml"
+        "swml_url": swml_url
     }
 
 
@@ -587,17 +892,31 @@ if __name__ == "__main__":
     logger.info(f"🎯 Employees will be available at: /swml/{{employee_id}}")
     logger.info("=" * 60)
 
+    # Auto-detect ngrok URL if APP_DOMAIN not set
+    if not APP_DOMAIN:
+        detected = _detect_ngrok_url()
+        if detected:
+            APP_DOMAIN = detected
+            agent_credentials["app_domain"] = detected
+            logger.info(f"🔍 Auto-detected ngrok URL: {detected}")
+        else:
+            logger.warning("APP_DOMAIN not set and ngrok not detected")
+
     # Write credentials to file for web app
-    credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
-    with open(credentials_file, 'w') as f:
-        json.dump({
-            "username": agent_credentials["username"],
-            "password": agent_credentials["password"],
-            "app_domain": agent_credentials["app_domain"],
-            "swml_url": f"{agent_credentials['app_domain']}/api/swml" if agent_credentials['app_domain'] else "/api/swml",
-            "timestamp": datetime.now().isoformat()
-        }, f, indent=2)
-    logger.info(f"✅ Wrote credentials to: {credentials_file}")
+    try:
+        credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
+        swml_path = "/swml/default"
+        with open(credentials_file, 'w') as f:
+            json.dump({
+                "username": agent_credentials["username"],
+                "password": agent_credentials["password"],
+                "app_domain": agent_credentials["app_domain"],
+                "swml_url": f"{agent_credentials['app_domain']}{swml_path}" if agent_credentials['app_domain'] else swml_path,
+                "timestamp": datetime.now().isoformat()
+            }, f, indent=2)
+        logger.info(f"✅ Wrote credentials to: {credentials_file}")
+    except Exception as e:
+        logger.warning(f"Could not write credentials file: {e}")
 
     # Start server
     uvicorn.run(app, host="0.0.0.0", port=8000)
