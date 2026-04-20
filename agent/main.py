@@ -675,6 +675,393 @@ class VirtualEmployeeAgent(AgentBase):
         return super().on_swml_request(request_data, callback_path, request)
 
 
+class WizardAgent(AgentBase):
+    """Voice-callable AI wizard that helps users build other AI agents through conversation.
+
+    The wizard guides the user through a structured setup flow:
+    1. Ask what kind of agent they want
+    2. Use ask_config_question to show options on screen
+    3. Call preview_agent to show a preview card
+    4. Ask for approval and customizations
+    5. Call create_agent when approved, then finalize_agent
+    """
+
+    def __init__(self):
+        super().__init__(
+            name="Agent Wizard",
+            route="/swml/wizard"
+        )
+
+        self.add_language(
+            name="English",
+            code="en-US",
+            voice="openai.shimmer",
+            speech_fillers=[
+                "Let me think about that...",
+                "Great question...",
+                "One moment..."
+            ],
+            function_fillers=[
+                "Updating the preview...",
+                "Creating your agent now..."
+            ]
+        )
+
+        self.prompt_add_section(
+            "Identity",
+            body=(
+                "You are the Agent Wizard, a friendly and knowledgeable setup assistant for Sally Sales. "
+                "Your purpose is to help users design and create custom AI agents through a guided conversation. "
+                "You make the process feel magical, exciting, and effortless."
+            )
+        )
+
+        self.prompt_add_section(
+            "Setup Flow",
+            bullets=[
+                "Start by warmly greeting the user and asking what kind of AI agent they want to create.",
+                "Use ask_config_question to display structured choices on the user's screen whenever you need their input — don't just ask verbally.",
+                "After gathering the basics (name, role, purpose), call preview_agent to show a preview card on the dashboard.",
+                "Continue gathering details — voice, capabilities, greeting — calling update_agent_preview as the design evolves.",
+                "When the user is happy with the preview, ask for final approval.",
+                "Once approved, call create_agent to build the real agent, then call finalize_agent to signal it is ready.",
+                "Keep your spoken responses short — 1-3 sentences — since this is a phone call.",
+                "Be enthusiastic but concise. Let the screen do the heavy lifting for complex choices.",
+            ]
+        )
+
+        self.prompt_add_section(
+            "Available Capabilities",
+            body=(
+                "When discussing what functions an agent can have, use list_available_functions to get the current list "
+                "and present them clearly to the user. Common choices: transfer_to_human, send_summary_sms, "
+                "schedule_callback, check_business_hours, collect_customer_info, send_email, end_call, search_knowledge."
+            )
+        )
+
+        self.set_param("temperature", 0.8)
+
+    # ------------------------------------------------------------------
+    # SWAIG Functions
+    # ------------------------------------------------------------------
+
+    @AgentBase.tool(
+        name="ask_config_question",
+        description="Display a configuration question with selectable options on the user's screen",
+        parameters={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to display on screen"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of selectable options to display"
+                },
+                "field": {
+                    "type": "string",
+                    "description": "The config field this question is populating (e.g. 'voice', 'role', 'functions')"
+                }
+            },
+            "required": ["question", "options", "field"]
+        }
+    )
+    def ask_config_question(self, args, raw_data):
+        question = args.get("question", "")
+        options = args.get("options", [])
+        field = args.get("field", "")
+
+        logger.info(f"[wizard] ask_config_question: field={field}, options={options}")
+
+        result = SwaigFunctionResult(
+            f"I've displayed the options on your screen. Take a look and let me know which one feels right."
+        )
+        result.swml_user_event({
+            "type": "agent_config_question",
+            "question": question,
+            "options": options,
+            "field": field
+        })
+        return result
+
+    @AgentBase.tool(
+        name="preview_agent",
+        description="Show a preview card of the agent being designed on the dashboard",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Agent's name"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Agent's role or title"
+                },
+                "prompt_summary": {
+                    "type": "string",
+                    "description": "Brief summary of the agent's purpose and personality"
+                },
+                "voice": {
+                    "type": "string",
+                    "description": "Voice to use (e.g. openai.nova, openai.shimmer)"
+                },
+                "functions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of enabled function names"
+                },
+                "greeting": {
+                    "type": "string",
+                    "description": "The agent's opening greeting"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Full prompt/instructions for the agent"
+                }
+            },
+            "required": ["name", "role"]
+        }
+    )
+    def preview_agent(self, args, raw_data):
+        name = args.get("name", "New Agent")
+        role = args.get("role", "Assistant")
+        prompt_summary = args.get("prompt_summary", "")
+        voice = args.get("voice", "openai.nova")
+        functions = args.get("functions", [])
+        greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you today?")
+        prompt = args.get("prompt", "")
+
+        logger.info(f"[wizard] preview_agent: name={name}, role={role}, voice={voice}")
+
+        result = SwaigFunctionResult(
+            f"I've shown a preview of {name} on your screen. Does that look good, or would you like to make any changes?"
+        )
+        result.swml_user_event({
+            "type": "agent_preview",
+            "name": name,
+            "role": role,
+            "prompt_summary": prompt_summary,
+            "voice": voice,
+            "functions": functions,
+            "greeting": greeting,
+            "prompt": prompt
+        })
+        return result
+
+    @AgentBase.tool(
+        name="update_agent_preview",
+        description="Update the agent preview card on the dashboard with new details",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Updated agent name"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Updated role or title"
+                },
+                "voice": {
+                    "type": "string",
+                    "description": "Updated voice"
+                },
+                "functions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Updated list of enabled functions"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Updated full prompt"
+                },
+                "greeting": {
+                    "type": "string",
+                    "description": "Updated greeting message"
+                }
+            }
+        }
+    )
+    def update_agent_preview(self, args, raw_data):
+        logger.info(f"[wizard] update_agent_preview: {list(args.keys())}")
+
+        result = SwaigFunctionResult(
+            "I've updated the preview on your screen with those changes."
+        )
+        result.swml_user_event({
+            "type": "agent_preview",
+            **{k: v for k, v in args.items() if v is not None}
+        })
+        return result
+
+    @AgentBase.tool(
+        name="create_agent",
+        description="Create the designed agent — builds the real agent and mounts it to a live endpoint",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Agent's name"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "Agent's role or title"
+                },
+                "greeting": {
+                    "type": "string",
+                    "description": "The agent's opening greeting"
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Full prompt/instructions for the agent"
+                },
+                "voice": {
+                    "type": "string",
+                    "description": "Voice to use (e.g. openai.nova)"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language code (e.g. en-US)"
+                },
+                "temperature": {
+                    "type": "number",
+                    "description": "Model temperature (0.0–1.0)"
+                },
+                "functions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of enabled function names"
+                }
+            },
+            "required": ["name", "role", "prompt"]
+        }
+    )
+    def create_agent(self, args, raw_data):
+        name = args.get("name", "New Agent")
+        role = args.get("role", "Assistant")
+        greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you?")
+        prompt = args.get("prompt", "")
+        voice = args.get("voice", "openai.nova")
+        language = args.get("language", "en-US")
+        temperature = args.get("temperature", 0.7)
+        functions = args.get("functions", ["transfer_to_human", "end_call"])
+
+        employee_id = str(uuid.uuid4())[:8]
+
+        employee_config = {
+            "id": employee_id,
+            "name": name,
+            "role": role,
+            "greeting": greeting,
+            "prompt": prompt,
+            "voice": voice,
+            "language": language,
+            "temperature": temperature,
+            "speech_hints": [],
+            "enabled_functions": functions,
+            "transfer_number": "",
+            "transfer_from": "",
+            "sms_from_number": "",
+            "video_idle_url": "",
+            "video_talking_url": "",
+            "business_hours_start": 9,
+            "business_hours_end": 18,
+            "business_days": [0, 1, 2, 3, 4],
+            "documents": [],
+            "sendgrid_api_key": "",
+            "email_from_address": "",
+            "email_from_name": "",
+            "space_name": "",
+            "project_id": "",
+            "token": "",
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "status": "active"
+        }
+
+        # Store and mount the new agent
+        employees[employee_id] = employee_config
+        new_agent = VirtualEmployeeAgent(employee_config)
+        agent_instances[employee_id] = new_agent
+        _remount_employee_router(employee_id, new_agent)
+
+        logger.info(f"[wizard] Created agent: {name} ({employee_id}) at /swml/{employee_id}")
+
+        result = SwaigFunctionResult(
+            f"Your agent {name} has been created and is live! "
+            "I've updated the dashboard. Give it a moment to load, then you can make your first call."
+        )
+        result.swml_user_event({
+            "type": "agent_created",
+            "employee": employee_config,
+            "swml_route": f"/swml/{employee_id}"
+        })
+        return result
+
+    @AgentBase.tool(
+        name="finalize_agent",
+        description="Signal that the agent is ready for calls and the setup process is complete",
+        parameters={
+            "type": "object",
+            "properties": {
+                "employee_id": {
+                    "type": "string",
+                    "description": "The ID of the created employee"
+                },
+                "message": {
+                    "type": "string",
+                    "description": "A completion message to display to the user"
+                }
+            },
+            "required": ["employee_id"]
+        }
+    )
+    def finalize_agent(self, args, raw_data):
+        employee_id = args.get("employee_id", "")
+        message = args.get("message", "Your agent is ready to take calls!")
+
+        logger.info(f"[wizard] finalize_agent: employee_id={employee_id}")
+
+        result = SwaigFunctionResult(
+            "Your agent is all set and ready to go. Is there anything else you'd like to adjust, "
+            "or would you like to create another agent?"
+        )
+        result.swml_user_event({
+            "type": "agent_ready",
+            "employee_id": employee_id,
+            "message": message
+        })
+        return result
+
+    @AgentBase.tool(
+        name="list_available_functions",
+        description="Returns a list of all available capabilities that can be enabled for an agent",
+        parameters={
+            "type": "object",
+            "properties": {}
+        }
+    )
+    def list_available_functions(self, args, raw_data):
+        logger.info("[wizard] list_available_functions called")
+
+        functions_list = (
+            "Here are the available capabilities you can enable for your agent:\n"
+            "- transfer_to_human: Transfer callers to a real person at a phone number\n"
+            "- send_summary_sms: Send text message summaries or confirmations to callers\n"
+            "- schedule_callback: Schedule a phone callback for a later time\n"
+            "- check_business_hours: Tell callers if you are currently open\n"
+            "- collect_customer_info: Gather and store caller name, email, phone, and company\n"
+            "- send_email: Send follow-up emails to callers via SendGrid\n"
+            "- end_call: Politely end the call when the conversation is complete\n"
+            "- search_knowledge: Search uploaded documents to answer caller questions"
+        )
+        return SwaigFunctionResult(functions_list)
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Virtual Employees Backend",
@@ -1029,6 +1416,12 @@ if __name__ == "__main__":
         logger.info(f"✅ Wrote credentials to: {credentials_file}")
     except Exception as e:
         logger.warning(f"Could not write credentials file: {e}")
+
+    # Mount the Wizard agent
+    wizard = WizardAgent()
+    _remount_employee_router("wizard", wizard)
+    agent_instances["wizard"] = wizard
+    logger.info("🧙 Wizard agent mounted at /swml/wizard")
 
     # Start server
     uvicorn.run(app, host="0.0.0.0", port=8000)
