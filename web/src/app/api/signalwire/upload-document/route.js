@@ -1,13 +1,26 @@
 import { getEmployeeById, updateEmployeeDocuments } from '@/lib/db';
+import { requireAuth } from '@/app/api/middleware/auth';
 
 export async function POST(request) {
   try {
+    // Try session-based auth first
+    const auth = await requireAuth(request);
+
     const formData = await request.formData();
     const file = formData.get('file');
     const employeeId = formData.get('employeeId');
-    const spaceUrl = formData.get('spaceUrl');
-    const projectId = formData.get('projectId');
-    const apiToken = formData.get('apiToken');
+
+    // Resolve credentials: session auth takes priority over formData fields
+    let spaceUrl, projectId, apiToken;
+    if (!auth.error) {
+      spaceUrl = auth.spaceUrl;
+      projectId = auth.projectId;
+      apiToken = auth.apiToken;
+    } else {
+      spaceUrl = formData.get('spaceUrl');
+      projectId = formData.get('projectId');
+      apiToken = formData.get('apiToken');
+    }
 
     if (!file || !employeeId || !spaceUrl || !projectId || !apiToken) {
       return Response.json({ success: false, error: 'Missing required fields' }, { status: 400 });

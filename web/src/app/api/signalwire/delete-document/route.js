@@ -1,12 +1,30 @@
 import { getEmployeeById, updateEmployeeDocuments } from '@/lib/db';
+import { requireAuth } from '@/app/api/middleware/auth';
 
 export async function POST(request) {
   try {
-    const { employeeId, documentId, spaceUrl, projectId, apiToken } = await request.json();
+    const body = await request.json();
+    const { employeeId, documentId } = body;
+    const bodyCredentials = body.credentials || {
+      spaceUrl: body.spaceUrl,
+      projectId: body.projectId,
+      apiToken: body.apiToken,
+    };
 
-    if (!employeeId || !documentId || !spaceUrl || !projectId || !apiToken) {
+    if (!employeeId || !documentId) {
       return Response.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
+
+    // Try session-based auth first, fall back to body credentials
+    let creds = bodyCredentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const { spaceUrl, projectId, apiToken } = creds;
 
     // Delete from DataSphere
     const spaceDomain = spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
