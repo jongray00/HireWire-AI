@@ -16,6 +16,7 @@ import {
   Moon,
 } from "lucide-react";
 import { useThemeStore } from "@/app/stores/theme";
+import WizardBanner from "@/components/dashboard/WizardBanner";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -219,6 +220,9 @@ export default function DashboardLayout({ children }) {
             </div>
           </div>
         </header>
+
+        {/* Wizard Banner — persists across all pages */}
+        <WizardBanner />
 
         {/* Page Content */}
         <main className="p-4 lg:p-6">
