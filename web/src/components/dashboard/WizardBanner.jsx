@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Wand2, Phone, PhoneOff, Mic, MicOff, Sparkles, Check, MessageCircle, X } from "lucide-react";
+import { Wand2, Phone, PhoneOff, Sparkles, Check, MessageCircle, X } from "lucide-react";
 import { useWizardCall } from "@/app/hooks/useWizardCall";
 import { WIZARD_EVENTS, parseWizardEvent } from "@/lib/wizardEvents";
 
@@ -18,8 +18,6 @@ export default function WizardBanner({ onAgentCreated }) {
   const [question, setQuestion] = useState(null);
   const [createdAgent, setCreatedAgent] = useState(null);
   const [readyAgent, setReadyAgent] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
-
   const handleWizardEvent = useCallback((eventData) => {
     const parsed = parseWizardEvent(eventData);
     if (!parsed) return;
@@ -56,25 +54,26 @@ export default function WizardBanner({ onAgentCreated }) {
     }
   }, [calling, connected]);
 
-  const handleEndCall = async () => {
+  const handleEndCall = useCallback(async () => {
     await endCall();
-  };
+  }, [endCall]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setCreatedAgent(null);
     setReadyAgent(null);
-    setDismissed(false);
-  };
+  }, []);
 
   const isActive = calling || connected;
   const hasResults = createdAgent || readyAgent;
 
   // Idle CTA bar
-  if (!isActive && !hasResults) {
+  if (!isActive && !hasResults && !error) {
     return (
       <div className="mx-4 lg:mx-6 mt-4 mb-0">
         <button
+          type="button"
           onClick={startCall}
+          aria-label="Start Setup Wizard call"
           className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 hover:from-purple-600/20 hover:to-indigo-600/20 border border-purple-500/30 hover:border-purple-500/50 rounded-xl transition-all group"
         >
           <div className="flex items-center gap-3">
@@ -92,6 +91,34 @@ export default function WizardBanner({ onAgentCreated }) {
             <span className="text-sm font-medium text-white">Call Now</span>
           </div>
         </button>
+      </div>
+    );
+  }
+
+  // Error state (call failed with no active session and no results)
+  if (!isActive && !hasResults && error) {
+    return (
+      <div className="mx-4 lg:mx-6 mt-4 mb-0">
+        <div className="flex items-center justify-between px-4 py-3 bg-red-900/20 border border-red-500/30 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-red-600/30 rounded-lg flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-red-300" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-red-300">Wizard call failed</p>
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={startCall}
+            aria-label="Retry Setup Wizard call"
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
+          >
+            <Phone className="w-3.5 h-3.5 text-white" />
+            <span className="text-sm font-medium text-white">Retry</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -208,7 +235,9 @@ export default function WizardBanner({ onAgentCreated }) {
           <div className="flex items-center gap-2 shrink-0">
             {isActive && (
               <button
+                type="button"
                 onClick={handleEndCall}
+                aria-label="End wizard call"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg transition-colors"
               >
                 <PhoneOff className="w-3.5 h-3.5 text-white" />
@@ -217,10 +246,12 @@ export default function WizardBanner({ onAgentCreated }) {
             )}
             {hasResults && !isActive && (
               <button
+                type="button"
                 onClick={handleDismiss}
+                aria-label="Dismiss wizard results"
                 className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             )}
           </div>
