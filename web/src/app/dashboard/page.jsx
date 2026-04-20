@@ -318,6 +318,34 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Demo Tools — hidden behind a disclosure */}
+      <details className="mt-8">
+        <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-300">
+          Demo Tools
+        </summary>
+        <div className="mt-2 flex gap-3">
+          <button
+            onClick={async () => {
+              if (!confirm('Clear all agents and call logs?')) return;
+              await fetch('/api/demo/reset', { method: 'POST' });
+              loadDashboardData();
+            }}
+            className="px-4 py-2 bg-red-900/30 text-red-300 border border-red-500/30 rounded-lg text-sm hover:bg-red-900/50"
+          >
+            Reset Demo Data
+          </button>
+          <button
+            onClick={async () => {
+              await fetch('/api/demo/seed', { method: 'POST' });
+              loadDashboardData();
+            }}
+            className="px-4 py-2 bg-blue-900/30 text-blue-300 border border-blue-500/30 rounded-lg text-sm hover:bg-blue-900/50"
+          >
+            Seed Example Data
+          </button>
+        </div>
+      </details>
     </div>
   );
 }
