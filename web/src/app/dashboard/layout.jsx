@@ -5,13 +5,13 @@ import { useNavigate, useLocation } from "react-router";
 import {
   Users,
   FileText,
-  Phone,
   Settings,
   LogOut,
   Menu,
   X,
   Home,
   Zap,
+  Activity,
   Sun,
   Moon,
 } from "lucide-react";
@@ -22,7 +22,7 @@ const navigation = [
   { name: "Employees", href: "/dashboard/employees", icon: Users },
   { name: "Resources", href: "/dashboard/resources", icon: Zap },
   { name: "Templates", href: "/dashboard/templates", icon: FileText },
-  { name: "Active Calls", href: "/dashboard/call", icon: Phone },
+  { name: "Call Logs", href: "/dashboard/call-logs", icon: Activity },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -36,11 +36,29 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check authentication on mount
+  // Check authentication on mount — verify server-side session via API
   useEffect(() => {
-    const checkAuth = () => {
-      const sessionData = localStorage.getItem("sally_sales_session");
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (res.ok) {
+          const serverSession = await res.json();
+          setSession({
+            credentials: {
+              spaceUrl: serverSession.spaceUrl,
+              projectId: serverSession.projectId,
+            },
+            subscriberData: serverSession.subscriberData,
+          });
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        // Server session check failed — try localStorage fallback
+      }
 
+      // Fallback to localStorage (backward compat during migration)
+      const sessionData = localStorage.getItem("sally_sales_session");
       if (!sessionData) {
         navigate("/login");
         return;
@@ -52,7 +70,6 @@ export default function DashboardLayout({ children }) {
           navigate("/login");
           return;
         }
-
         setSession(parsedSession);
         setIsLoading(false);
       } catch (e) {
@@ -65,10 +82,14 @@ export default function DashboardLayout({ children }) {
     checkAuth();
   }, [navigate]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear server-side session cookie
+    try {
+      await fetch("/api/auth/session", { method: "DELETE" });
+    } catch {
+      // Non-critical
+    }
     localStorage.removeItem("sally_sales_session");
-    // Optionally keep or remove credentials based on "remember me"
-    // localStorage.removeItem("sally_sales_credentials");
     navigate("/login");
   };
 

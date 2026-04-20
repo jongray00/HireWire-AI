@@ -2,12 +2,14 @@
  * Agent Credentials API Route
  *
  * Returns the current agent credentials with dynamically constructed SWML URL
- * based on the current request domain (not hardcoded)
+ * based on the current request domain (not hardcoded).
+ * Falls back to agent-credentials.json for the Python backend's BasicAuth creds.
  */
 
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
+import { getSetting } from '@/lib/db';
 
 export async function GET(request) {
   try {
@@ -16,7 +18,6 @@ export async function GET(request) {
     const credentials = JSON.parse(credentialsData);
 
     // Dynamically construct SWML URL from current request
-    // This ensures the URL matches where the app is actually hosted
     const swmlUrl = getSwmlWebhookUrl(request);
 
     console.log('[Credentials API] Dynamically constructed SWML URL:', swmlUrl);
@@ -26,7 +27,6 @@ export async function GET(request) {
       username: credentials.username,
       password: credentials.password,
       timestamp: credentials.timestamp,
-      // Use dynamically constructed URL instead of hardcoded one
       swml_url: swmlUrl
     }), {
       status: 200,

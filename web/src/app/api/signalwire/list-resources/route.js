@@ -9,6 +9,8 @@
  * Body (POST): { credentials, type? }
  */
 
+import { requireAuth } from '@/app/api/middleware/auth';
+
 // Helper function to get resource name for addressing
 function getResourceName(resource) {
   // Priority: name > display_name > id
@@ -166,7 +168,17 @@ async function handleRequest(credentials, typeFilter = null) {
 export async function POST(request) {
   try {
     const { credentials, type } = await request.json();
-    return await handleRequest(credentials, type);
+
+    // Try session-based auth first, fall back to body credentials
+    let creds = credentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ error: 'Missing credentials' }, { status: 401 });
+    }
+
+    return await handleRequest(creds, type);
   } catch (error) {
     console.error('Error listing resources:', error);
     return Response.json(
@@ -178,18 +190,24 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
-    // Get credentials from query params or headers
     const url = new URL(request.url);
     const typeFilter = url.searchParams.get('type');
 
-    // For GET, we expect credentials to be passed differently
-    // You might want to use session-based auth here instead
-    const session = request.headers.get('x-session-data');
+    // Try session-based auth first, fall back to x-session-data header
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      return await handleRequest(
+        { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken },
+        typeFilter
+      );
+    }
 
+    // Fall back to legacy header-based approach
+    const session = request.headers.get('x-session-data');
     if (!session) {
       return Response.json(
-        { error: 'Missing session data. Use POST method with credentials in body.' },
-        { status: 400 }
+        { error: 'Missing credentials' },
+        { status: 401 }
       );
     }
 

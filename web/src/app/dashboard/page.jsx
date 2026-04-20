@@ -31,38 +31,69 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // Load employees from localStorage for now
-      const employeesData = localStorage.getItem("sally_sales_employees");
-      const employees = employeesData ? JSON.parse(employeesData) : [];
+      // Load employees from API (DB-backed), with localStorage fallback
+      let employees = [];
+      try {
+        let empUrl = "/api/employees/sync";
+        try {
+          const session = JSON.parse(localStorage.getItem("sally_sales_session") || "{}");
+          const projectId = session.credentials?.projectId;
+          if (projectId) empUrl += `?projectId=${encodeURIComponent(projectId)}`;
+        } catch { /* ignore */ }
+        const empRes = await fetch(empUrl);
+        const empData = await empRes.json();
+        if (empData.success && empData.employees) {
+          employees = empData.employees;
+        }
+      } catch {
+        const employeesData = localStorage.getItem("sally_sales_employees");
+        employees = employeesData ? JSON.parse(employeesData) : [];
+      }
 
-      // Load call history (mock for now)
-      const callHistory = localStorage.getItem("sally_sales_call_history");
-      const calls = callHistory ? JSON.parse(callHistory) : [];
+      // Fetch real call data from post-prompt logs API (scoped to project)
+      let calls = [];
+      try {
+        let logsUrl = "/api/post-prompt/logs";
+        try {
+          const session = JSON.parse(localStorage.getItem("sally_sales_session") || "{}");
+          const projectId = session.credentials?.projectId;
+          if (projectId) logsUrl += `?projectId=${encodeURIComponent(projectId)}`;
+        } catch { /* ignore */ }
 
-      // Calculate stats
-      const activeCalls = calls.filter((c) => c.status === "active").length;
+        const res = await fetch(logsUrl);
+        const data = await res.json();
+        if (data.success && data.logs) {
+          calls = data.logs;
+        }
+      } catch {
+        // Fallback to localStorage if API unavailable
+        const callHistory = localStorage.getItem("sally_sales_call_history");
+        calls = callHistory ? JSON.parse(callHistory) : [];
+      }
+
+      // Calculate stats from real call data
       const totalCalls = calls.length;
       const avgDuration =
         totalCalls > 0
-          ? calls.reduce((sum, c) => sum + (c.duration || 0), 0) / totalCalls
+          ? calls.reduce((sum, c) => sum + (c.durationSec || c.duration || 0), 0) / totalCalls
           : 0;
 
       setStats({
         totalEmployees: employees.length,
-        activeCalls,
+        activeCalls: 0,
         totalCalls,
         avgDuration: Math.round(avgDuration),
       });
 
-      // Get recent activity
-      const activity = calls
+      // Get recent activity from real call logs
+      const activity = [...calls]
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
         .slice(0, 5)
         .map((call) => ({
           id: call.id,
           type: "call",
           employee: call.employeeName || "Unknown Employee",
-          message: `Call ${call.status} - ${call.duration || 0}s`,
+          message: `Call ${call.outcome || call.status || "completed"} - ${call.durationSec || call.duration || 0}s`,
           timestamp: call.timestamp,
         }));
 

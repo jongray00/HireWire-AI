@@ -1,15 +1,26 @@
+import { requireAuth } from '@/app/api/middleware/auth';
+
 export async function POST(request) {
   try {
     const { credentials, subscriberReference } = await request.json();
 
-    if (!credentials || !subscriberReference) {
+    // Try session-based auth first, fall back to body credentials
+    let creds = credentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ error: 'Missing credentials' }, { status: 401 });
+    }
+
+    if (!subscriberReference) {
       return Response.json(
-        { error: "Missing required parameters: credentials and subscriberReference" },
+        { error: "Missing required parameter: subscriberReference" },
         { status: 400 },
       );
     }
 
-    const { spaceUrl, projectId, apiToken } = credentials;
+    const { spaceUrl, projectId, apiToken } = creds;
     const normalizedSpaceUrl = spaceUrl
       .replace(/^https?:\/\//, "")
       .replace(/\/$/, "");

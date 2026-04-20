@@ -1,0 +1,18 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting sendgrid
+  Downloading sendgrid-6.12.5-py3-none-any.whl.metadata (12 kB)
+Collecting python-http-client>=3.2.1 (from sendgrid)
+  Downloading python_http_client-3.3.7-py3-none-any.whl.metadata (6.9 kB)
+Requirement already satisfied: cryptography>=45.0.6 in /Users/jonny/Library/Python/3.12/lib/python/site-packages (from sendgrid) (46.0.5)
+Requirement already satisfied: werkzeug>=2.2.0 in /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages (from sendgrid) (2.3.7)
+Requirement already satisfied: cffi>=2.0.0 in /Users/jonny/Library/Python/3.12/lib/python/site-packages (from cryptography>=45.0.6->sendgrid) (2.0.0)
+Requirement already satisfied: pycparser in /Users/jonny/Library/Python/3.12/lib/python/site-packages (from cffi>=2.0.0->cryptography>=45.0.6->sendgrid) (3.0)
+Requirement already satisfied: MarkupSafe>=2.1.1 in /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages (from werkzeug>=2.2.0->sendgrid) (3.0.2)
+Downloading sendgrid-6.12.5-py3-none-any.whl (102 kB)
+Downloading python_http_client-3.3.7-py3-none-any.whl (8.4 kB)
+Installing collected packages: python-http-client, sendgrid
+
+Successfully installed python-http-client-3.3.7 sendgrid-6.12.5
+
+[notice] A new release of pip is available: 25.1.1 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip

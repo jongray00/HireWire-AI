@@ -7,6 +7,7 @@
 
 import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
 import { verifyAndCorrectSwmlWebhook } from '@/app/api/utils/verifySwml.js';
+import { requireAuth } from '@/app/api/middleware/auth';
 
 const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
@@ -14,21 +15,23 @@ export async function POST(request) {
   try {
     const { resourceId, displayName, credentials, prompt, resourceType, updates, webhookUrl: customWebhookUrl } = await request.json();
 
-    if (!resourceId || !credentials) {
+    if (!resourceId) {
       return Response.json(
-        { error: 'Missing required parameters' },
+        { error: 'Missing required parameter: resourceId' },
         { status: 400 }
       );
     }
 
-    const { spaceUrl, projectId, apiToken } = credentials;
-
-    if (!spaceUrl || !projectId || !apiToken) {
-      return Response.json(
-        { error: 'Missing required credentials' },
-        { status: 400 }
-      );
+    // Try session-based auth first, fall back to body credentials
+    let creds = credentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ error: 'Missing credentials' }, { status: 401 });
     }
+
+    const { spaceUrl, projectId, apiToken } = creds;
 
     const normalizedSpaceUrl = spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const baseUrl = `https://${normalizedSpaceUrl}`;

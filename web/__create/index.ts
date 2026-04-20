@@ -2,11 +2,6 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import nodeConsole from 'node:console';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { skipCSRFCheck } from '@auth/core';
-import Credentials from '@auth/core/providers/credentials';
-import { authHandler, initAuthConfig } from '@hono/auth-js';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { hash, verify } from 'argon2';
 import { Hono } from 'hono';
 import { contextStorage, getContext } from 'hono/context-storage';
 import { cors } from 'hono/cors';
@@ -14,16 +9,17 @@ import { proxy } from 'hono/proxy';
 import { requestId } from 'hono/request-id';
 import { createHonoServer } from 'react-router-hono-server/node';
 import { serializeError } from 'serialize-error';
-import ws from 'ws';
-import NeonAdapter from './adapter';
+import { getDb, getAllEmployees, getEmployeeById, getSetting } from '../src/lib/db';
 import { getHTMLForErrorPage } from './get-html-for-error-page';
-import { isAuthAction } from './is-auth-action';
 import { API_BASENAME, api } from './route-builder';
-neonConfig.webSocketConstructor = ws;
+
+// Initialize the database on server start
+getDb();
+console.log('[DB] SQLite database initialized');
 
 /**
- * Read current agent credentials from the file written by Python backend
- * @returns {string} The credentials in the format "username:password"
+ * Read current agent credentials from the file written by Python backend.
+ * This is still needed for the BasicAuth header on SWML proxy requests.
  */
 function getAgentCredentials(): string {
   try {
@@ -51,11 +47,6 @@ for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
     }
   };
 }
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-const adapter = NeonAdapter(pool);
 
 const app = new Hono();
 
@@ -90,140 +81,6 @@ if (process.env.CORS_ORIGINS) {
   );
 }
 
-if (process.env.AUTH_SECRET) {
-  app.use(
-    '*',
-    initAuthConfig((c) => ({
-      secret: c.env.AUTH_SECRET,
-      pages: {
-        signIn: '/account/signin',
-        signOut: '/account/logout',
-      },
-      skipCSRFCheck,
-      session: {
-        strategy: 'jwt',
-      },
-      callbacks: {
-        session({ session, token }) {
-          if (token.sub) {
-            session.user.id = token.sub;
-          }
-          return session;
-        },
-      },
-      cookies: {
-        csrfToken: {
-          options: {
-            secure: true,
-            sameSite: 'none',
-          },
-        },
-        sessionToken: {
-          options: {
-            secure: true,
-            sameSite: 'none',
-          },
-        },
-        callbackUrl: {
-          options: {
-            secure: true,
-            sameSite: 'none',
-          },
-        },
-      },
-      providers: [
-        Credentials({
-          id: 'credentials-signin',
-          name: 'Credentials Sign in',
-          credentials: {
-            email: {
-              label: 'Email',
-              type: 'email',
-            },
-            password: {
-              label: 'Password',
-              type: 'password',
-            },
-          },
-          authorize: async (credentials) => {
-            const { email, password } = credentials;
-            if (!email || !password) {
-              return null;
-            }
-            if (typeof email !== 'string' || typeof password !== 'string') {
-              return null;
-            }
-
-            // logic to verify if user exists
-            const user = await adapter.getUserByEmail(email);
-            if (!user) {
-              return null;
-            }
-            const matchingAccount = user.accounts.find(
-              (account) => account.provider === 'credentials'
-            );
-            const accountPassword = matchingAccount?.password;
-            if (!accountPassword) {
-              return null;
-            }
-
-            const isValid = await verify(accountPassword, password);
-            if (!isValid) {
-              return null;
-            }
-
-            // return user object with the their profile data
-            return user;
-          },
-        }),
-        Credentials({
-          id: 'credentials-signup',
-          name: 'Credentials Sign up',
-          credentials: {
-            email: {
-              label: 'Email',
-              type: 'email',
-            },
-            password: {
-              label: 'Password',
-              type: 'password',
-            },
-          },
-          authorize: async (credentials) => {
-            const { email, password } = credentials;
-            if (!email || !password) {
-              return null;
-            }
-            if (typeof email !== 'string' || typeof password !== 'string') {
-              return null;
-            }
-
-            // logic to verify if user exists
-            const user = await adapter.getUserByEmail(email);
-            if (!user) {
-              const newUser = await adapter.createUser({
-                id: crypto.randomUUID(),
-                emailVerified: null,
-                email,
-              });
-              await adapter.linkAccount({
-                extraData: {
-                  password: await hash(password),
-                },
-                type: 'credentials',
-                userId: newUser.id,
-                providerAccountId: newUser.id,
-                provider: 'credentials',
-              });
-              return newUser;
-            }
-            return null;
-          },
-        }),
-      ],
-    }))
-  );
-}
 app.all('/integrations/:path{.+}', async (c, next) => {
   const queryParams = c.req.query();
   const url = `${process.env.NEXT_PUBLIC_CREATE_BASE_URL ?? 'https://www.create.xyz'}/integrations/${c.req.param('path')}${Object.keys(queryParams).length > 0 ? `?${new URLSearchParams(queryParams).toString()}` : ''}`;
@@ -245,17 +102,72 @@ app.all('/integrations/:path{.+}', async (c, next) => {
   });
 });
 
-app.use('/api/auth/*', async (c, next) => {
-  if (isAuthAction(c.req.path)) {
-    return authHandler()(c, next);
-  }
-  return next();
-});
+// ---------------------------------------------------------------------------
+// SWML Proxy with lazy agent re-creation
+//
+// When SignalWire hits /api/swml/{employeeId}, the proxy forwards to the
+// Python backend.  If the backend returns 404 (agent not registered — e.g.
+// after a restart) the proxy reads the persisted employee config from the
+// SQLite database, re-creates the agent in the Python backend, then retries
+// the original request.  This makes the system self-healing.
+// ---------------------------------------------------------------------------
 
-// Direct SWML proxy route - ensures SWML endpoints work for SignalWire webhooks
-// This bypasses file-based routing to guarantee the endpoint is accessible
+function readEmployeesFromDb(): any[] {
+  try {
+    return getAllEmployees();
+  } catch {
+    return [];
+  }
+}
+
+async function ensureAgentRegistered(employeeId: string, pythonBackendUrl: string): Promise<boolean> {
+  const employee = getEmployeeById(employeeId);
+
+  if (!employee) {
+    console.warn(`[SWML Proxy] No persisted config for employee ${employeeId}`);
+    return false;
+  }
+
+  console.log(`[SWML Proxy] Re-creating agent for ${employee.name} (${employeeId}) in Python backend`);
+
+  try {
+    // Parse JSON fields from DB
+    const speechHints = typeof employee.speech_hints === 'string' ? JSON.parse(employee.speech_hints) : employee.speech_hints || [];
+    const enabledFunctions = typeof employee.enabled_functions === 'string' ? JSON.parse(employee.enabled_functions) : employee.enabled_functions || [];
+
+    const res = await fetch(`${pythonBackendUrl}/api/create-employee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: employee.id,
+        name: employee.name,
+        role: employee.role,
+        greeting: employee.greeting,
+        prompt: employee.prompt,
+        voice: employee.voice,
+        language: employee.language,
+        temperature: employee.temperature,
+        speech_hints: speechHints,
+        enabled_functions: enabledFunctions,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(`[SWML Proxy] Failed to re-create agent: ${res.status} ${await res.text()}`);
+      return false;
+    }
+
+    console.log(`[SWML Proxy] Agent ${employeeId} re-created successfully`);
+    return true;
+  } catch (err) {
+    console.error('[SWML Proxy] Error re-creating agent:', err);
+    return false;
+  }
+}
+
 app.all('/api/swml/:employeeId{.*}', async (c) => {
-  const employeeId = c.req.param('employeeId');
+  // Strip trailing slashes — the route pattern captures them as part of the param
+  const employeeId = c.req.param('employeeId').replace(/\/+$/, '');
   const pythonBackendUrl = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
   // Construct the backend URL, ensuring proper path formatting
@@ -270,33 +182,58 @@ app.all('/api/swml/:employeeId{.*}', async (c) => {
 
   console.log(`[SWML Proxy] ${c.req.method} /api/swml/${employeeId} -> ${fullBackendUrl}`);
 
-  try {
-    // Get agent credentials for Basic Auth
-    const authCredentials = getAgentCredentials();
-    const base64Auth = Buffer.from(authCredentials).toString('base64');
+  const authCredentials = getAgentCredentials();
+  const base64Auth = Buffer.from(authCredentials).toString('base64');
 
-    // Proxy the request to the Python backend
+  const proxyHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Basic ${base64Auth}`,
+    'X-Forwarded-Host': c.req.header('host') || '',
+    'X-Forwarded-Proto': c.req.header('x-forwarded-proto') || 'https',
+  };
+
+  try {
+    // First attempt
     const response = await fetch(fullBackendUrl, {
       method: c.req.method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${base64Auth}`,
-        'X-Forwarded-Host': c.req.header('host') || '',
-        'X-Forwarded-Proto': c.req.header('x-forwarded-proto') || 'https',
-      },
+      headers: proxyHeaders,
       body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
-      // @ts-ignore - this key is accepted even if types not aware and is
-      // required for streaming requests with body
+      // @ts-ignore
       duplex: 'half',
     });
 
-    const body = await response.text();
-    console.log(`[SWML Proxy] Response ${response.status} from Python backend`);
+    // If the backend knows this agent, return immediately
+    if (response.status !== 404) {
+      const body = await response.text();
+      console.log(`[SWML Proxy] Response ${response.status} from Python backend`);
+      return new Response(body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
 
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
+    // 404 — agent not registered.  Try to re-create it from persisted config.
+    console.log(`[SWML Proxy] 404 for ${employeeId} — attempting lazy re-creation`);
+
+    const created = await ensureAgentRegistered(employeeId, pythonBackendUrl);
+    if (!created) {
+      return c.json({ error: 'Agent not found and could not be re-created' }, 404);
+    }
+
+    // Retry the original request
+    const retry = await fetch(fullBackendUrl, {
+      method: c.req.method,
+      headers: proxyHeaders,
+    });
+
+    const retryBody = await retry.text();
+    console.log(`[SWML Proxy] Retry response ${retry.status}`);
+
+    return new Response(retryBody, {
+      status: retry.status,
+      statusText: retry.statusText,
+      headers: retry.headers,
     });
   } catch (error) {
     console.error('[SWML Proxy] Error proxying to Python backend:', error);
@@ -307,6 +244,61 @@ app.all('/api/swml/:employeeId{.*}', async (c) => {
       },
       500
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Direct /swml/* proxy (for SWAIG function callbacks from SignalWire)
+//
+// The Python backend generates webhook URLs at /swml/{id}/swaig/ (no /api/
+// prefix). SignalWire calls these directly, so we must proxy them to the
+// Python backend just like /api/swml/*.
+// ---------------------------------------------------------------------------
+
+app.all('/swml/:rest{.*}', async (c) => {
+  const rest = c.req.param('rest').replace(/\/+$/, '');
+  const pythonBackendUrl = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
+
+  let backendPath = `/swml/${rest}`;
+  if (!backendPath.endsWith('/')) {
+    backendPath += '/';
+  }
+
+  const queryString = c.req.url.includes('?') ? c.req.url.split('?')[1] : '';
+  const fullBackendUrl = queryString
+    ? `${pythonBackendUrl}${backendPath}?${queryString}`
+    : `${pythonBackendUrl}${backendPath}`;
+
+  console.log(`[SWML Direct Proxy] ${c.req.method} /swml/${rest} -> ${fullBackendUrl}`);
+
+  const authCredentials = getAgentCredentials();
+  const base64Auth = Buffer.from(authCredentials).toString('base64');
+
+  try {
+    const response = await fetch(fullBackendUrl, {
+      method: c.req.method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${base64Auth}`,
+        'X-Forwarded-Host': c.req.header('host') || '',
+        'X-Forwarded-Proto': c.req.header('x-forwarded-proto') || 'https',
+      },
+      body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+      // @ts-ignore
+      duplex: 'half',
+    });
+
+    const body = await response.text();
+    console.log(`[SWML Direct Proxy] Response ${response.status}`);
+
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  } catch (error) {
+    console.error('[SWML Direct Proxy] Error:', error);
+    return c.json({ error: 'Failed to proxy SWML request' }, 500);
   }
 });
 

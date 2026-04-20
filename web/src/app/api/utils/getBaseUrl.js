@@ -30,21 +30,8 @@ function getAgentCredentials() {
  * @returns {string} The base URL (e.g., 'https://example.com' or 'https://example.com/demo-ivr')
  */
 export function getBaseUrl(request) {
-  // First check if there's an APP_DOMAIN in agent credentials (from .env)
-  const credentials = getAgentCredentials();
-  if (credentials && credentials.app_domain) {
-    return credentials.app_domain;
-  }
-
-  // Check if there's an environment variable override
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-
-  // Extract from request headers
-  const url = new URL(request.url);
-
-  // Check for forwarded headers (used by proxies like ngrok, Replit, etc.)
+  // 1. Forwarded headers are the live truth — prefer them over any stored value.
+  //    Proxies like ngrok, Cloudflare, Replit, etc. set these on every request.
   const forwardedProto = request.headers.get('x-forwarded-proto');
   const forwardedHost = request.headers.get('x-forwarded-host');
 
@@ -53,7 +40,19 @@ export function getBaseUrl(request) {
     return `${protocol}://${forwardedHost}`;
   }
 
-  // Fallback to the request's origin
+  // 2. Environment variable override
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+
+  // 3. Stored app_domain from agent-credentials.json (may be stale)
+  const credentials = getAgentCredentials();
+  if (credentials && credentials.app_domain) {
+    return credentials.app_domain;
+  }
+
+  // 4. Fallback to the request's origin
+  const url = new URL(request.url);
   return url.origin;
 }
 

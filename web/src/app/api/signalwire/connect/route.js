@@ -1,3 +1,6 @@
+import { upsertUser } from '@/lib/db';
+import { createSessionToken, buildSessionCookie } from '@/lib/session';
+
 export async function POST(request) {
   try {
     const { spaceUrl, projectId, apiToken, subscriberId: providedSubscriberId } = await request.json();
@@ -39,7 +42,6 @@ export async function POST(request) {
     const firstNumber = phoneNumbers.incoming_phone_numbers?.[0]?.phone_number || null;
 
     // Use fixed default subscriber ID to prevent wasteful creation
-    // This ensures we always reuse the same subscriber instead of creating expensive new ones
     const DEFAULT_SUBSCRIBER_ID = 'sally_sales_default_user';
     const subscriberId = providedSubscriberId || DEFAULT_SUBSCRIBER_ID;
     const subscriberEmail = `${subscriberId}@sally-sales.signalwire.com`;
@@ -70,11 +72,9 @@ export async function POST(request) {
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
         if (checkData.data && checkData.data.length > 0) {
-          // Subscriber exists - reuse it
           subscriber = checkData.data[0];
           console.log('✅ SUCCESS: Subscriber exists in SignalWire');
           console.log(`   ♻️  REUSING subscriber ID: ${subscriber.id}`);
-          console.log(`   💰 Cost saved by reusing instead of creating new subscriber`);
         } else {
           // SAFEGUARD 2: Before creating, double-check by subscriber reference
           console.log('🔍 Double-checking by subscriber reference...');
@@ -89,17 +89,14 @@ export async function POST(request) {
           if (checkByRefResponse.ok) {
             const refData = await checkByRefResponse.json();
             if (refData.data && refData.data.length > 0) {
-              // Found by reference - reuse it
               subscriber = refData.data[0];
               console.log('✅ SUCCESS: Subscriber found by reference');
               console.log(`   ♻️  REUSING subscriber ID: ${subscriber.id}`);
-              console.log(`   💰 Cost saved by reusing instead of creating new subscriber`);
             }
           }
 
           // SAFEGUARD 3: Only create if not found by either email or reference
           if (!subscriber) {
-            // Create new subscriber
             console.log('⚠️  Subscriber not found, creating new one...');
           const createResponse = await fetch(`${baseUrl}/api/fabric/subscribers`, {
             method: 'POST',
@@ -120,10 +117,8 @@ export async function POST(request) {
             subscriberCreated = true;
             console.log('✅ Subscriber created successfully in SignalWire');
             console.log(`   🆕 NEW subscriber ID: ${subscriber.id}`);
-            console.log(`   📧 Email: ${subscriberEmail}`);
           } else {
             const errorText = await createResponse.text();
-            // If email already taken, retry query
             if (createResponse.status === 422 && errorText.includes('Email has already been taken')) {
               const retryResponse = await fetch(`${baseUrl}/api/fabric/subscribers?email=${encodeURIComponent(subscriberEmail)}`, {
                 method: 'GET',
@@ -149,11 +144,30 @@ export async function POST(request) {
       }
     } catch (error) {
       console.error('Error managing subscriber:', error);
-      // Continue even if subscriber management fails
     }
 
-    // Return connection success with subscriber info
-    return Response.json({
+    // Persist user credentials to database
+    upsertUser({
+      projectId,
+      spaceUrl: normalizedSpaceUrl,
+      apiToken,
+      subscriberId: subscriber?.id || subscriberId,
+      subscriberData: {
+        subscriberId,
+        signalwireSubscriberId: subscriber?.id || null,
+        phoneNumber: firstNumber,
+        availableNumbers: phoneNumbers.incoming_phone_numbers?.length || 0,
+      },
+    });
+
+    console.log(`[Connect] User upserted in database: project=${projectId}`);
+
+    // Create JWT session token
+    const token = await createSessionToken({ projectId, spaceUrl: normalizedSpaceUrl });
+    const cookie = buildSessionCookie(token);
+
+    // Return connection success with subscriber info + set session cookie
+    return new Response(JSON.stringify({
       success: true,
       subscriberId,
       signalwireSubscriberId: subscriber?.id || null,
@@ -162,6 +176,12 @@ export async function POST(request) {
       availableNumbers: phoneNumbers.incoming_phone_numbers?.length || 0,
       subscriberCreated,
       message: 'Successfully connected to SignalWire'
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': cookie,
+      },
     });
 
   } catch (error) {

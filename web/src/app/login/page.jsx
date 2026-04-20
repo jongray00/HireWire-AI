@@ -16,21 +16,18 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Check if already logged in
+  // Check if already logged in (server-side session via cookie)
   useEffect(() => {
-    const session = localStorage.getItem("sally_sales_session");
-    if (session) {
-      try {
-        const sessionData = JSON.parse(session);
-        if (sessionData.isLoggedIn && sessionData.credentials) {
-          // Already logged in, redirect to dashboard
+    fetch("/api/auth/session")
+      .then((res) => {
+        if (res.ok) {
+          // Valid server session exists — redirect to dashboard
           navigate("/dashboard");
         }
-      } catch (e) {
-        // Invalid session, clear it
-        localStorage.removeItem("sally_sales_session");
-      }
-    }
+      })
+      .catch(() => {
+        // No session — stay on login page
+      });
 
     // Load saved credentials if remember me was checked
     const savedCredentials = localStorage.getItem("sally_sales_credentials");
@@ -85,17 +82,24 @@ export default function LoginPage() {
 
       const data = await response.json();
 
-      // Save session
+      // Server sets an HttpOnly JWT cookie automatically via Set-Cookie header.
+      // We still store a lightweight session in localStorage for client-side
+      // checks (spaceUrl display, quick redirect logic) but credentials are
+      // NOT stored here — they live server-side in the database.
       const sessionData = {
         isLoggedIn: true,
-        credentials,
+        credentials: {
+          spaceUrl: credentials.spaceUrl,
+          projectId: credentials.projectId,
+          // apiToken intentionally omitted — stored server-side only
+        },
         subscriberData: data,
         timestamp: new Date().toISOString(),
       };
       localStorage.setItem("sally_sales_session", JSON.stringify(sessionData));
       localStorage.setItem("sally_sales_subscriber_id", DEFAULT_SUBSCRIBER_ID);
 
-      // Save credentials if remember me is checked
+      // Save credentials if remember me is checked (for pre-filling the form)
       if (rememberMe) {
         localStorage.setItem("sally_sales_credentials", JSON.stringify(credentials));
       } else {

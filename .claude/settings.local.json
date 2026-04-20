@@ -22,7 +22,10 @@
       "Bash(git fetch:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pip3 show:*)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []

@@ -44,13 +44,35 @@ export default function DemoIVRPage() {
   const [agentEvents, setAgentEvents] = useState([]);
   const [agentAddress, setAgentAddress] = useState(null); // Store the address to dial
 
-  // SignalWire credentials
+  // SignalWire credentials — loaded from session, never hardcoded
   const [credentials, setCredentials] = useState({
-    spaceUrl: "demo.signalwire.com",
-    projectId: "5d30e1ba-32c2-4d62-b94c-4855c2ba739e",
-    apiToken: "PTe6d2153a3f9aa2043072c4c51936ba752e94fac0dd15b70f",
+    spaceUrl: "",
+    projectId: "",
+    apiToken: "",
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Load credentials from session storage (written by login page)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const session = localStorage.getItem('sally_sales_session');
+        if (session) {
+          const parsed = JSON.parse(session);
+          if (parsed.spaceUrl || parsed.projectId || parsed.apiToken) {
+            setCredentials(prev => ({
+              ...prev,
+              ...(parsed.spaceUrl && { spaceUrl: parsed.spaceUrl }),
+              ...(parsed.projectId && { projectId: parsed.projectId }),
+              ...(parsed.apiToken && { apiToken: parsed.apiToken }),
+            }));
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
   const [isConnecting, setIsConnecting] = useState(false);
   const [subscriberData, setSubscriberData] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);

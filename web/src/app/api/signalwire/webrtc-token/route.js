@@ -5,6 +5,8 @@
  * Uses reference-based authentication (no password or application_id required)
  */
 
+import { requireAuth } from '@/app/api/middleware/auth';
+
 export async function POST(request) {
   console.log('[WebRTC Token] POST request received');
 
@@ -17,12 +19,13 @@ export async function POST(request) {
 
     const { credentials, subscriberId } = body;
 
-    if (!credentials || !credentials.spaceUrl || !credentials.projectId || !credentials.apiToken) {
-      console.error('[WebRTC Token] Missing credentials');
-      return Response.json(
-        { error: 'Missing required SignalWire credentials' },
-        { status: 400 }
-      );
+    // Try session-based auth first, fall back to body credentials
+    let creds = credentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ error: 'Missing credentials' }, { status: 401 });
     }
 
     if (!subscriberId) {
@@ -34,7 +37,7 @@ export async function POST(request) {
     }
 
     // Normalize space URL
-    const normalizedSpaceUrl = credentials.spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const normalizedSpaceUrl = creds.spaceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
     const baseUrl = `https://${normalizedSpaceUrl}`;
 
     console.log('[WebRTC Token] Requesting subscriber token from SignalWire:', {
@@ -54,7 +57,7 @@ export async function POST(request) {
       tokenResponse = await fetch(`${baseUrl}/api/fabric/subscribers/tokens`, {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${Buffer.from(`${credentials.projectId}:${credentials.apiToken}`).toString('base64')}`,
+          'Authorization': `Basic ${Buffer.from(`${creds.projectId}:${creds.apiToken}`).toString('base64')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)

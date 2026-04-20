@@ -1,10 +1,10 @@
 export async function GET(request, { params }) {
   try {
     const { subscriberId } = params;
-    
+
     // Retrieve stored SWML configuration
     const config = getSWMLConfig(subscriberId);
-    
+
     if (!config) {
       return Response.json(
         { error: 'Agent configuration not found' },
@@ -33,79 +33,41 @@ export async function POST(request, { params }) {
   try {
     const { subscriberId } = params;
     const body = await request.json();
-    
-    // Handle SWAIG function calls
+
     console.log('SWAIG function call received:', body);
-    
+
     const { function: functionName, argument: args } = body;
-    
-    // Send real-time event: Agent is processing request
-    const processingResponse = {
-      response: "Let me help you with that...",
-      user_event: {
-        type: "agent_thinking",
-        status: "processing",
-        function: functionName,
-        timestamp: new Date().toISOString()
-      }
-    };
-    
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     // Route to appropriate function handler
     switch (functionName) {
-      case 'route_to_order':
-      case 'route_to_schedule':
-      case 'route_to_appointment':
-      case 'route_to_support':
-      case 'route_to_sales':
-      case 'route_to_billing':
-      case 'route_to_status':
-      case 'route_to_check':
-        return handleRouting(functionName, args, subscriberId);
-        
-      case 'transfer_call':
+      case 'transfer_to_human':
         return handleTransfer(args, subscriberId);
-        
-      case 'demo_order_item':
-        return handleDemoOrderItem(args, subscriberId);
-        
-      case 'demo_get_status':
-        return handleDemoGetStatus(args, subscriberId);
-        
+
+      case 'take_message':
+        return handleTakeMessage(args, subscriberId);
+
+      case 'send_summary_sms':
+        return handleSendSms(args, subscriberId);
+
+      case 'schedule_callback':
+        return handleScheduleCallback(args, subscriberId);
+
+      case 'check_business_hours':
+        return handleCheckBusinessHours(subscriberId);
+
+      case 'end_call':
+        return handleEndCall(args, subscriberId);
+
       default:
         return Response.json({
-          response: `I'm sorry, I don't have access to that function. Let me connect you with a human representative who can help you.`,
-          user_event: {
-            type: "function_not_found",
-            function: functionName,
-            timestamp: new Date().toISOString()
-          },
-          action: [
-            {
-              name: "transfer",
-              to: "+15551234567"
-            }
-          ]
+          response: `I'm sorry, I don't have access to that function right now. Is there anything else I can help with?`,
         });
     }
 
   } catch (error) {
     console.error('Error handling SWAIG function:', error);
     return Response.json({
-      response: "I apologize, but I'm experiencing a technical issue. Let me connect you with someone who can help.",
-      user_event: {
-        type: "error",
-        message: error.message,
-        timestamp: new Date().toISOString()
-      },
-      action: [
-        {
-          name: "transfer",
-          to: "+15551234567"
-        }
-      ]
+      response: "I apologize, but I'm experiencing a technical issue. Let me try to help you another way.",
     });
   }
 }
@@ -115,103 +77,75 @@ function getSWMLConfig(subscriberId) {
   return global.swmlConfigs.get(subscriberId);
 }
 
-function handleRouting(functionName, args, subscriberId) {
-  const department = functionName.replace('route_to_', '');
-  const reason = args?.reason || 'General inquiry';
-  
-  // Log the routing request
-  console.log(`Routing to ${department}: ${reason}`);
-  
-  // Send real-time event about routing decision
-  const departmentNumbers = {
-    order: '+15551234567',
-    schedule: '+15551234568',
-    appointment: '+15551234568',
-    support: '+15551234569',
-    sales: '+15551234567',
-    billing: '+15551234570',
-    status: '+15551234571',
-    check: '+15551234571'
-  };
-  
-  const transferNumber = departmentNumbers[department] || '+15551234567';
-  
-  return Response.json({
-    response: `I'll connect you with our ${department} team right away. Please hold while I transfer your call.`,
-    user_event: {
-      type: "routing_decision",
-      department: department,
-      reason: reason,
-      transfer_number: transferNumber,
-      timestamp: new Date().toISOString()
-    },
-    action: [
-      {
-        name: "transfer",
-        to: transferNumber
-      }
-    ]
-  });
-}
-
-function handleDemoOrderItem(args, subscriberId) {
-  const itemName = args?.item_name || 'item';
-  const quantity = args?.quantity || 1;
-  
-  // Simulate order processing
-  const mockItem = {
-    name: itemName,
-    quantity: quantity,
-    price: 12.99,
-    total: (quantity * 12.99).toFixed(2)
-  };
-  
-  return Response.json({
-    response: `Great! I've added ${quantity} ${itemName} to your order for $${mockItem.total}. Is there anything else you'd like to add?`,
-    user_event: {
-      type: "item_added",
-      item: mockItem,
-      order_total: mockItem.total,
-      timestamp: new Date().toISOString()
-    }
-  });
-}
-
-function handleDemoGetStatus(args, subscriberId) {
-  const orderNumber = args?.order_number || '12345';
-  
-  // Simulate status lookup
-  const mockStatus = {
-    order_number: orderNumber,
-    status: 'In Progress',
-    estimated_completion: '15 minutes',
-    items: ['Pizza Margherita', 'Garlic Bread']
-  };
-  
-  return Response.json({
-    response: `Order ${orderNumber} is currently ${mockStatus.status}. Your ${mockStatus.items.join(' and ')} should be ready in about ${mockStatus.estimated_completion}.`,
-    user_event: {
-      type: "status_checked",
-      order: mockStatus,
-      timestamp: new Date().toISOString()
-    }
-  });
-}
-
 function handleTransfer(args, subscriberId) {
   const department = args?.department || 'general';
   const reason = args?.reason || 'Requested human assistance';
-  
+
   console.log(`Transfer requested - Department: ${department}, Reason: ${reason}`);
-  
+
+  // The actual transfer is handled by the Python backend via SwaigFunctionResult.connect()
+  // This frontend handler is a fallback for demo-ivr SWML agents only
   return Response.json({
     response: `I'll connect you with a representative from our ${department} team. Please hold while I transfer your call.`,
-    action: [
-      {
-        name: "transfer",
-        to: "+15551234567"
-      }
-    ]
+  });
+}
+
+function handleTakeMessage(args, subscriberId) {
+  const callerName = args?.caller_name || 'Unknown';
+  const callbackNumber = args?.callback_number || 'not provided';
+  const message = args?.message || '';
+
+  console.log(`Message taken from ${callerName}: ${message}`);
+
+  return Response.json({
+    response: `I've taken your message, ${callerName}. Someone from our team will get back to you shortly.`,
+  });
+}
+
+function handleSendSms(args, subscriberId) {
+  const phoneNumber = args?.phone_number || '';
+  const summary = args?.summary || '';
+
+  console.log(`SMS summary requested to ${phoneNumber}`);
+
+  // The actual SMS is handled by the Python backend via SwaigFunctionResult.send_sms()
+  return Response.json({
+    response: phoneNumber
+      ? `I've sent a text summary to ${phoneNumber}.`
+      : `I need your phone number to send the summary. Could you please provide it?`,
+  });
+}
+
+function handleScheduleCallback(args, subscriberId) {
+  const callerName = args?.caller_name || '';
+  const preferredTime = args?.preferred_time || '';
+
+  console.log(`Callback scheduled for ${callerName} at ${preferredTime}`);
+
+  return Response.json({
+    response: `I've scheduled a callback for ${callerName} at ${preferredTime}. Someone from our team will reach out to you then.`,
+  });
+}
+
+function handleCheckBusinessHours(subscriberId) {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay(); // 0=Sunday, 6=Saturday
+
+  const isOpen = day >= 1 && day <= 5 && hour >= 9 && hour < 18;
+
+  return Response.json({
+    response: isOpen
+      ? "We are currently open. Our business hours are Monday through Friday, 9 AM to 6 PM."
+      : "We are currently closed. Our business hours are Monday through Friday, 9 AM to 6 PM. I can take a message or schedule a callback for when we reopen.",
+  });
+}
+
+function handleEndCall(args, subscriberId) {
+  console.log(`Call ended: ${args?.reason || 'Conversation complete'}`);
+
+  return Response.json({
+    response: "Thank you for calling! Have a wonderful day. Goodbye!",
   });
 }
 

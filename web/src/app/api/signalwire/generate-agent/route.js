@@ -9,6 +9,7 @@
 
 import { getSwmlWebhookUrl } from '@/app/api/utils/getBaseUrl.js';
 import { verifyAndCorrectSwmlWebhook } from '@/app/api/utils/verifySwml.js';
+import { requireAuth } from '@/app/api/middleware/auth';
 
 const AGENT_BACKEND_URL = process.env.AGENT_BACKEND_URL || 'http://localhost:8000';
 
@@ -16,14 +17,23 @@ export async function POST(request) {
   try {
     const { prompt, credentials, subscriberId, resourceId, displayName } = await request.json();
 
-    if (!prompt || !credentials || !subscriberId) {
+    if (!prompt || !subscriberId) {
       return Response.json(
-        { error: 'Missing required parameters' },
+        { error: 'Missing required parameters (prompt, subscriberId)' },
         { status: 400 }
       );
     }
 
-    const { spaceUrl, projectId, apiToken } = credentials;
+    // Try session-based auth first, fall back to body credentials
+    let creds = credentials;
+    const auth = await requireAuth(request);
+    if (!auth.error) {
+      creds = { spaceUrl: auth.spaceUrl, projectId: auth.projectId, apiToken: auth.apiToken };
+    } else if (!creds?.spaceUrl || !creds?.projectId || !creds?.apiToken) {
+      return Response.json({ error: 'Missing credentials' }, { status: 401 });
+    }
+
+    const { spaceUrl, projectId, apiToken } = creds;
     const baseUrl = `https://${spaceUrl}`;
     const basicAuth = Buffer.from(`${projectId}:${apiToken}`).toString('base64');
 
@@ -53,7 +63,7 @@ export async function POST(request) {
     console.log(`BaseURL: ${baseUrl}`);
 
     // Construct email from subscriber ID
-    const subscriberEmail = `${subscriberId}@demo.signalwire.com`;
+    const subscriberEmail = `${subscriberId}@sally-sales.signalwire.com`;
     console.log(`Checking for subscriber with email: ${subscriberEmail}`);
 
     // Check if subscriber exists by querying with email filter

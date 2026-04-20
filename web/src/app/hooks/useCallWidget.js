@@ -4,7 +4,9 @@ import { useNavigate } from "react-router";
 /**
  * useCallWidget Hook
  *
- * Reusable hook for initiating calls using the SignalWire Call Widget
+ * Reusable hook for initiating calls using the SignalWire Call Widget.
+ * Credentials are now managed server-side via JWT session cookies.
+ * The widget token endpoint reads credentials from the DB automatically.
  *
  * @returns {Object} { initiateCall, calling, error }
  */
@@ -25,30 +27,53 @@ export function useCallWidget() {
       setCalling(true);
       setError(null);
 
-      // Get session data
-      const session = localStorage.getItem("sally_sales_session");
-      if (!session) {
+      // Verify we have a valid server session
+      const sessionRes = await fetch("/api/auth/session");
+      if (!sessionRes.ok) {
         navigate("/login");
         return false;
       }
 
-      const sessionData = JSON.parse(session);
-      const credentials = sessionData.credentials;
+      // Pre-call domain check: reconcile stale webhook URLs
+      try {
+        const employees = JSON.parse(localStorage.getItem("sally_sales_employees") || "[]");
+        const employee = employees.find(e => e.callFabricAddress === destination);
+        if (employee?.webhookUrl) {
+          const domainRes = await fetch("/api/settings/domain");
+          const domainData = await domainRes.json();
+          if (domainData.success && domainData.domain) {
+            const currentHost = new URL(domainData.domain).host;
+            const webhookCleaned = employee.webhookUrl.replace(/^(https?:\/\/)[^@]+@/, "$1");
+            const webhookHost = new URL(webhookCleaned).host;
+            if (currentHost !== webhookHost) {
+              console.log("[useCallWidget] Stale webhook detected, reconciling...");
+              // Server gets credentials from session automatically
+              await fetch("/api/signalwire/reconcile-webhooks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+              });
+            }
+          }
+        }
+      } catch (domainErr) {
+        // Non-blocking — proceed with the call even if check fails
+        console.warn("[useCallWidget] Pre-call domain check failed:", domainErr.message);
+      }
 
-      // Use the persistent subscriber from login session
-      const subscriberReference = sessionData.subscriberData?.subscriberId || "sally_sales_default_user";
+      // Use the persistent subscriber from session
+      const subscriberReference = "sally_sales_default_user";
 
       console.log("Initiating call with subscriber:", subscriberReference);
       console.log("Calling destination:", destination);
 
-      // Generate widget token for the session subscriber
+      // Generate widget token — server gets credentials from session cookie
       const response = await fetch("/api/signalwire/widget-token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          credentials,
           subscriberReference,
         }),
       });
@@ -96,19 +121,35 @@ export function useCallWidget() {
         widget.setAttribute("user-variables", JSON.stringify(userVariables));
       }
 
-      // Event listeners
-      widget.addEventListener("call.joined", () => {
-        console.log("Call joined:", destination);
-      });
-
-      widget.addEventListener("call.left", () => {
-        console.log("Call ended:", destination);
+      // Cleanup helper — ensures calling state is reset exactly once
+      let cleaned = false;
+      const cleanup = (reason) => {
+        if (cleaned) return;
+        cleaned = true;
+        console.log("Call cleanup:", reason, destination);
         setCalling(false);
-        // Clean up widgets after call ends
         setTimeout(() => {
           widget.remove();
           button.remove();
         }, 1000);
+      };
+
+      // Event listeners — multiple events can signal the call ended,
+      // so cleanup() is idempotent.
+      widget.addEventListener("call.joined", () => {
+        console.log("Call joined:", destination);
+      });
+
+      widget.addEventListener("call.left", () => cleanup("call.left"));
+      widget.addEventListener("call.ended", () => cleanup("call.ended"));
+
+      // call.state can fire with "destroy", "hangup", etc.
+      widget.addEventListener("call.state", (event) => {
+        const state = event?.detail?.state || event?.detail;
+        console.log("Call state:", state);
+        if (state === "destroy" || state === "hangup" || state === "ended") {
+          cleanup("call.state:" + state);
+        }
       });
 
       widget.addEventListener("call.error", (event) => {
@@ -134,8 +175,18 @@ export function useCallWidget() {
         }
 
         setError(errorMessage);
-        setCalling(false);
+        cleanup("call.error");
       });
+
+      // Safety net: if the widget gets removed from the DOM (e.g. user
+      // closes the call window), detect it via MutationObserver and reset.
+      const observer = new MutationObserver(() => {
+        if (!document.body.contains(widget)) {
+          observer.disconnect();
+          cleanup("widget-removed");
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
 
       // Append widget to body
       document.body.appendChild(widget);

@@ -1,6 +1,6 @@
 # Sally Sales Agent Backend
 
-Python backend for the Sally Sales AI agent using SignalWire Agents SDK.
+Python backend for the Sally Sales multi-employee AI voice agent system using the SignalWire Agents SDK.
 
 ## Setup
 
@@ -9,53 +9,84 @@ Python backend for the Sally Sales AI agent using SignalWire Agents SDK.
 pip install -r requirements.txt
 ```
 
-2. Run the agent:
+2. Configure `.env` (optional — ngrok URL is auto-detected):
+```bash
+cp .env.example .env
+# Edit .env if you need to set APP_DOMAIN manually
+```
+
+3. Run the agent:
 ```bash
 python main.py
 ```
 
-The agent will be available at `http://localhost:3030`
+The agent runs on `http://localhost:8000`.
 
-## Exposing with ngrok
+## ngrok Auto-Detection
 
-To make the agent accessible to SignalWire:
+At startup, the backend queries the ngrok local API (`localhost:4040/api/tunnels`) to discover the current public URL. If found, it sets `APP_DOMAIN` automatically. To override, set `APP_DOMAIN` in `.env`.
 
 ```bash
-ngrok http 3030 --domain=jonnykarate.ngrok.io
-```
+# Start ngrok first
+ngrok http 8000
 
-The agent SWML endpoint will be at: `https://jonnykarate.ngrok.io/swml`
+# Then start the agent — it will detect the ngrok URL
+python main.py
+```
 
 ## API Endpoints
 
-- `GET /swml` - SWML document (called by SignalWire)
-- `POST /swaig/{function}` - SWAIG function handlers (called by SignalWire)
-- `POST /api/update-config` - Update agent configuration from UI
-- `GET /api/config` - Get current agent configuration
-- `GET /health` - Health check
+### Employee Management
 
-## Configuration
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/create-employee` | Create a new virtual employee |
+| GET | `/api/list-employees` | List all employees |
+| GET | `/api/employee/{id}` | Get employee config |
+| PATCH | `/api/employee/{id}` | Update employee config |
+| DELETE | `/api/employee/{id}` | Delete an employee |
 
-The agent can be dynamically configured from the web UI. When you update the prompt in the UI, it sends a request to `/api/update-config` which updates the agent's personality and behavior in real-time.
+### SWML
 
-## Functions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/swml/{employee_id}` | SWML document (called by SignalWire) |
 
-The agent includes these SWAIG functions:
+### Legacy / System
 
-- `route_to_order` - Route to order department
-- `route_to_schedule` - Route to scheduling/appointments
-- `route_to_support` - Route to customer support
-- `demo_order_item` - Add items to order (demo)
-- `demo_get_status` - Check order status (demo)
-- `transfer_call` - Transfer to human representative
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/update-config` | Legacy: create/update default employee |
+| GET | `/api/config` | Legacy: get default config + credentials |
+| GET | `/api/agent-info` | System info |
+| GET | `/health` | Health check |
+
+## Employee Configuration
+
+When creating an employee, you can specify `enabled_functions` to control which SWAIG tools are available:
+
+```json
+{
+  "name": "Sales Rep",
+  "role": "Sales Representative",
+  "enabled_functions": ["transfer_call", "route_to_order"]
+}
+```
+
+### Available Functions
+
+- `route_to_order` — Route caller to order department
+- `route_to_schedule` — Route caller to scheduling
+- `route_to_support` — Route caller to customer support
+- `transfer_call` — Transfer call to a human representative
 
 ## Real-Time Events
 
-The agent sends real-time events to the UI via `swml_user_event()`:
+The agent sends events via `swml_user_event()`:
 
-- `routing_decision` - When routing to a department
-- `item_added` - When an item is added to order
-- `status_checked` - When order status is checked
-- `transfer_initiated` - When call transfer is initiated
+- `routing_decision` — When routing to a department
+- `transfer_initiated` — When call transfer is initiated
 
-These events are received in the browser via the SignalWire client's `userInput` event listener.
+## Call Analytics
+
+After each call, SignalWire sends a post-prompt payload to the frontend's `/api/post-prompt/{employeeId}` endpoint, which stores structured call logs for the dashboard.
