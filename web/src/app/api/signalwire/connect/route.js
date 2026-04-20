@@ -162,6 +162,40 @@ export async function POST(request) {
 
     console.log(`[Connect] User upserted in database: project=${projectId}`);
 
+    // Ensure wizard-agent resource exists in SignalWire
+    try {
+      const { getSwmlWebhookUrl } = await import('@/app/api/utils/getBaseUrl');
+      const wizardWebhookUrl = getSwmlWebhookUrl(request, '/swml/wizard/');
+
+      // Check if resource already exists
+      const listRes = await fetch(`${baseUrl}/api/fabric/resources?name=wizard-agent`, {
+        method: 'GET',
+        headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/json' },
+      });
+
+      let wizardExists = false;
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        wizardExists = listData.data?.some(r => r.name === 'wizard-agent');
+      }
+
+      if (!wizardExists) {
+        await fetch(`${baseUrl}/api/fabric/resources`, {
+          method: 'POST',
+          headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'wizard-agent',
+            display_name: 'Setup Wizard',
+            type: 'swml_webhook',
+            swml_webhook: { url: wizardWebhookUrl },
+          }),
+        });
+        console.log('[Connect] Created wizard-agent resource');
+      }
+    } catch (err) {
+      console.warn('[Connect] Could not create wizard resource:', err.message);
+    }
+
     // Create JWT session token
     const token = await createSessionToken({ projectId, spaceUrl: normalizedSpaceUrl });
     const cookie = buildSessionCookie(token);
