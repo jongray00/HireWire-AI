@@ -215,7 +215,10 @@ class VirtualEmployeeAgent(AgentBase):
                     doc_distance = doc.get('distance', 3.0) if isinstance(doc, dict) else 3.0
 
                     if doc_id:
-                        tool_name = f"search_{doc_name.lower().replace(' ', '_').replace('-', '_')[:20]}"
+                        import hashlib
+                        doc_hash = hashlib.md5(str(doc_id).encode()).hexdigest()[:6]
+                        safe_name = doc_name.lower().replace(' ', '_').replace('-', '_')[:20]
+                        tool_name = f"search_{safe_name}_{doc_hash}"
                         self.add_skill("datasphere_serverless", {
                             "space_name": space_name,
                             "project_id": project_id,
