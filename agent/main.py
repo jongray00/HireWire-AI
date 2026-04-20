@@ -1166,6 +1166,30 @@ def _remount_employee_router(employee_id: str, agent: VirtualEmployeeAgent):
 
 # Employee Management API Endpoints
 
+def _validate_datasphere_doc(space_name: str, project_id: str, token: str, doc_id: str) -> dict:
+    """Validate a DataSphere document_id by making a test query."""
+    try:
+        import urllib.request
+        url = f"https://{space_name}/api/datasphere/documents/search"
+        body = json.dumps({
+            "document_id": doc_id,
+            "query_string": "test",
+            "count": 1,
+            "distance": 10.0
+        }).encode()
+        auth = f"{project_id}:{token}"
+        import base64
+        auth_header = base64.b64encode(auth.encode()).decode()
+        req = urllib.request.Request(url, data=body, method='POST', headers={
+            'Authorization': f'Basic {auth_header}',
+            'Content-Type': 'application/json'
+        })
+        resp = urllib.request.urlopen(req, timeout=5)
+        return {"valid": True}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 @app.post("/api/create-employee")
 async def create_employee(request: Request):
     """Create a new virtual employee"""
@@ -1206,6 +1230,20 @@ async def create_employee(request: Request):
             "updated_at": datetime.now().isoformat(),
             "status": "active"
         }
+
+        # Validate document IDs if search_knowledge is enabled
+        if 'search_knowledge' in employee_config.get('enabled_functions', []):
+            docs = employee_config.get('documents', [])
+            space = employee_config.get('space_name', '')
+            proj = employee_config.get('project_id', '')
+            tok = employee_config.get('token', '')
+            if docs and space and proj and tok:
+                for doc in docs:
+                    doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc
+                    if doc_id:
+                        result = _validate_datasphere_doc(space, proj, tok, doc_id)
+                        if not result['valid']:
+                            logger.warning(f"  Document {doc_id} validation failed: {result['error']}")
 
         # Store employee
         employees[employee_id] = employee_config
