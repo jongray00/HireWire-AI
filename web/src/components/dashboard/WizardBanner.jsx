@@ -40,6 +40,8 @@ export default function WizardBanner({ onAgentCreated }) {
         setReadyAgent(parsed.data);
         break;
     }
+    // Broadcast to other listeners (e.g., employees page for highlight animation)
+    window.dispatchEvent(new CustomEvent("wizard-event", { detail: parsed.data }));
   }, [onAgentCreated]);
 
   const { startCall, endCall, calling, connected, connectionState, error, videoRef } =
