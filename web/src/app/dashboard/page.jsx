@@ -129,14 +129,6 @@ export default function DashboardPage() {
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Welcome Section */}
@@ -148,36 +140,50 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Employees"
-          value={stats.totalEmployees}
-          icon={Users}
-          color="blue"
-          trend={null}
-        />
-        <StatCard
-          title="Active Calls"
-          value={stats.activeCalls}
-          icon={Phone}
-          color="green"
-          trend={null}
-        />
-        <StatCard
-          title="Total Calls"
-          value={stats.totalCalls}
-          icon={Activity}
-          color="purple"
-          trend="+12%"
-        />
-        <StatCard
-          title="Avg Duration"
-          value={`${stats.avgDuration}s`}
-          icon={Clock}
-          color="orange"
-          trend="-5%"
-        />
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+              <div className="animate-pulse">
+                <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg mb-4"></div>
+                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-16 mb-2"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title="Employees"
+            value={stats.totalEmployees}
+            icon={Users}
+            color="blue"
+            trend={null}
+          />
+          <StatCard
+            title="Active Calls"
+            value={stats.activeCalls}
+            icon={Phone}
+            color="green"
+            trend={null}
+          />
+          <StatCard
+            title="Total Calls"
+            value={stats.totalCalls}
+            icon={Activity}
+            color="purple"
+            trend="+12%"
+          />
+          <StatCard
+            title="Avg Duration"
+            value={`${stats.avgDuration}s`}
+            icon={Clock}
+            color="orange"
+            trend="-5%"
+          />
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div>
