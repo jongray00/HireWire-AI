@@ -207,23 +207,54 @@ class VirtualEmployeeAgent(AgentBase):
             token = os.getenv('SIGNALWIRE_TOKEN', '') or self.employee_config.get('token', '')
 
             if documents and space_name and project_id and token:
+                doc_descriptions = []
                 for doc in documents:
                     doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc
+                    doc_name = doc.get('name', doc_id[:8]) if isinstance(doc, dict) else doc_id[:8]
+                    doc_desc = doc.get('description', '') if isinstance(doc, dict) else ''
+                    doc_distance = doc.get('distance', 3.0) if isinstance(doc, dict) else 3.0
+
                     if doc_id:
+                        tool_name = f"search_{doc_name.lower().replace(' ', '_').replace('-', '_')[:20]}"
                         self.add_skill("datasphere_serverless", {
                             "space_name": space_name,
                             "project_id": project_id,
                             "token": token,
                             "document_id": doc_id,
                             "count": 3,
-                            "distance": 5.0
+                            "distance": doc_distance,
+                            "tool_name": tool_name,
+                            "description": doc_desc or f"Search the {doc_name} knowledge base",
+                            "swaig_fields": {
+                                "fillers": {
+                                    "en-US": [
+                                        "Let me check our documentation...",
+                                        "Searching our knowledge base...",
+                                        "Looking that up for you..."
+                                    ]
+                                }
+                            }
                         })
-                        logger.info(f"  Added DataSphere skill for doc: {doc_id}")
+                        doc_descriptions.append(f"- {tool_name}: {doc_desc or doc_name}")
+                        logger.info(f"  Added DataSphere skill '{tool_name}' for doc: {doc_id} (distance={doc_distance})")
+
+                # Add routing guidance if multiple docs
+                if len(doc_descriptions) > 1:
+                    routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
+                    routing += "\nChoose the most relevant one based on the caller's question."
+                    self.add_pom_section("Knowledge Base Routing", body=routing)
             else:
                 if not documents:
                     logger.info(f"  search_knowledge enabled but no documents uploaded")
+                    self.employee_config['knowledge_status'] = 'no_documents'
                 else:
-                    logger.warning(f"  search_knowledge enabled but missing DataSphere credentials")
+                    missing = []
+                    if not space_name: missing.append('space_name')
+                    if not project_id: missing.append('project_id')
+                    if not token: missing.append('token')
+                    logger.warning(f"  search_knowledge enabled but missing: {', '.join(missing)}")
+                    self.employee_config['knowledge_status'] = 'misconfigured'
+                    self.employee_config['knowledge_error'] = f"Missing credentials: {', '.join(missing)}"
 
         # Remove SWAIG tools not in the enabled list
         # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter
