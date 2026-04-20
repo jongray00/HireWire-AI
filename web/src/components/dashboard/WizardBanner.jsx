@@ -1,0 +1,231 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { Wand2, Phone, PhoneOff, Mic, MicOff, Sparkles, Check, MessageCircle, X } from "lucide-react";
+import { useWizardCall } from "@/app/hooks/useWizardCall";
+import { WIZARD_EVENTS, parseWizardEvent } from "@/lib/wizardEvents";
+
+/**
+ * WizardBanner — Global inline wizard experience.
+ *
+ * Idle: slim CTA bar — "Setup Wizard — Build agents with your voice [Call Now]"
+ * Active: expanded banner with audio controls, questions, and preview cards.
+ *
+ * Mount in dashboard/layout.jsx so it persists across all pages.
+ */
+export default function WizardBanner({ onAgentCreated }) {
+  const [preview, setPreview] = useState(null);
+  const [question, setQuestion] = useState(null);
+  const [createdAgent, setCreatedAgent] = useState(null);
+  const [readyAgent, setReadyAgent] = useState(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const handleWizardEvent = useCallback((eventData) => {
+    const parsed = parseWizardEvent(eventData);
+    if (!parsed) return;
+
+    switch (parsed.type) {
+      case WIZARD_EVENTS.AGENT_PREVIEW:
+        setPreview((prev) => ({ ...prev, ...parsed.data }));
+        setQuestion(null);
+        break;
+      case WIZARD_EVENTS.AGENT_CONFIG_QUESTION:
+        setQuestion(parsed.data);
+        break;
+      case WIZARD_EVENTS.AGENT_CREATED:
+        setCreatedAgent(parsed.data.employee);
+        setPreview(null);
+        setQuestion(null);
+        if (onAgentCreated) onAgentCreated(parsed.data.employee);
+        break;
+      case WIZARD_EVENTS.AGENT_READY:
+        setReadyAgent(parsed.data);
+        break;
+    }
+  }, [onAgentCreated]);
+
+  const { startCall, endCall, calling, connected, connectionState, error, videoRef } =
+    useWizardCall({ onEvent: handleWizardEvent });
+
+  // Reset wizard state when call ends
+  useEffect(() => {
+    if (!calling && !connected) {
+      // Keep createdAgent/readyAgent visible after call ends
+      setPreview(null);
+      setQuestion(null);
+    }
+  }, [calling, connected]);
+
+  const handleEndCall = async () => {
+    await endCall();
+  };
+
+  const handleDismiss = () => {
+    setCreatedAgent(null);
+    setReadyAgent(null);
+    setDismissed(false);
+  };
+
+  const isActive = calling || connected;
+  const hasResults = createdAgent || readyAgent;
+
+  // Idle CTA bar
+  if (!isActive && !hasResults) {
+    return (
+      <div className="mx-4 lg:mx-6 mt-4 mb-0">
+        <button
+          onClick={startCall}
+          className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 hover:from-purple-600/20 hover:to-indigo-600/20 border border-purple-500/30 hover:border-purple-500/50 rounded-xl transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-white" />
+            </div>
+            <div className="text-left">
+              <span className="font-medium text-purple-300 group-hover:text-purple-200">Setup Wizard</span>
+              <span className="text-gray-500 dark:text-gray-400 mx-2">—</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Build agents with your voice</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors">
+            <Phone className="w-3.5 h-3.5 text-white" />
+            <span className="text-sm font-medium text-white">Call Now</span>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  // Active banner or results
+  return (
+    <div className="mx-4 lg:mx-6 mt-4 mb-0">
+      <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 rounded-xl overflow-hidden">
+        {/* Banner header */}
+        <div className="flex items-center gap-4 p-4">
+          {/* Left: Audio/connection area */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div
+              ref={videoRef}
+              className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center"
+            >
+              <Wand2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-purple-300 text-sm">Setup Wizard</span>
+                {isActive && (
+                  <span className="flex items-center gap-1 text-xs">
+                    {connectionState === "connecting" && (
+                      <span className="text-yellow-400">Connecting...</span>
+                    )}
+                    {connectionState === "ringing" && (
+                      <span className="text-yellow-400">Ringing...</span>
+                    )}
+                    {connectionState === "connected" && (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                        <span className="text-green-400">Live</span>
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+              {error && <p className="text-xs text-red-400 mt-0.5">{error}</p>}
+            </div>
+          </div>
+
+          {/* Center: Question / Preview / Created */}
+          <div className="flex-1 min-w-0">
+            {/* Question overlay */}
+            {question && (
+              <div>
+                <p className="text-sm text-white font-medium mb-2">
+                  <MessageCircle className="w-3.5 h-3.5 inline mr-1.5 text-purple-400" />
+                  {question.question}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {question.options?.map((option, i) => (
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 bg-purple-600/30 border border-purple-500/40 rounded-lg text-xs text-purple-200"
+                    >
+                      {option}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Preview card */}
+            {preview && !question && (
+              <div className="flex items-center gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white text-sm">{preview.name || "New Agent"}</span>
+                    <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[10px] rounded-full border border-yellow-500/30">
+                      Preview
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">{preview.role || "Assistant"}</p>
+                </div>
+                {preview.functions?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 shrink-0">
+                    {preview.functions.slice(0, 3).map((fn) => (
+                      <span key={fn} className="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded-full border border-blue-500/30">
+                        {fn.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                    {preview.functions.length > 3 && (
+                      <span className="text-[10px] text-gray-500">+{preview.functions.length - 3}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Agent created */}
+            {createdAgent && !preview && !question && (
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-green-400 shrink-0" />
+                <span className="text-sm text-green-300 font-medium">Created: {createdAgent.name}</span>
+                <span className="text-xs text-gray-400">{createdAgent.role}</span>
+                {readyAgent && (
+                  <span className="flex items-center gap-1 text-xs text-green-400 ml-2">
+                    <Check className="w-3 h-3" />
+                    Ready
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Idle state during active call (no events yet) */}
+            {isActive && !question && !preview && !createdAgent && (
+              <p className="text-sm text-gray-400">Speak to the wizard to start building your agent...</p>
+            )}
+          </div>
+
+          {/* Right: Call controls */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isActive && (
+              <button
+                onClick={handleEndCall}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                <PhoneOff className="w-3.5 h-3.5 text-white" />
+                <span className="text-xs font-medium text-white">End</span>
+              </button>
+            )}
+            {hasResults && !isActive && (
+              <button
+                onClick={handleDismiss}
+                className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
