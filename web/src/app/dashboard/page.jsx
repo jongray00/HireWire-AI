@@ -12,15 +12,10 @@ import {
   TrendingUp,
   Zap,
   ArrowRight,
-  Wand2,
 } from "lucide-react";
-import WizardPanel from "@/components/dashboard/WizardPanel";
-import { useCallWidget } from "@/app/hooks/useCallWidget";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { initiateCall, calling: wizardCalling } = useCallWidget();
-  const [wizardActive, setWizardActive] = useState(false);
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeCalls: 0,
@@ -32,16 +27,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
-
-  useEffect(() => {
-    const handleUserInput = (event) => {
-      if (window.__wizardEventHandler) {
-        window.__wizardEventHandler(event.detail || event);
-      }
-    };
-    window.addEventListener("wizard-event", handleUserInput);
-    return () => window.removeEventListener("wizard-event", handleUserInput);
   }, []);
 
   const loadDashboardData = async () => {
@@ -118,18 +103,6 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCallWizard = async () => {
-    setWizardActive(true);
-    const success = await initiateCall("/public/wizard-agent");
-    if (!success) {
-      setWizardActive(false);
-    }
-  };
-
-  const handleAgentCreated = (employee) => {
-    loadDashboardData();
   };
 
   const quickActions = [
@@ -216,25 +189,7 @@ export default function DashboardPage() {
             <QuickActionCard key={action.title} {...action} />
           ))}
         </div>
-        <div className="mt-4">
-          <button
-            onClick={handleCallWizard}
-            disabled={wizardCalling}
-            className="flex items-center gap-3 w-full p-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl text-white transition-all disabled:opacity-50"
-          >
-            <Wand2 className="w-6 h-6" />
-            <div className="text-left">
-              <p className="font-semibold">{wizardCalling ? "Wizard Active..." : "Call Setup Wizard"}</p>
-              <p className="text-sm text-purple-200">Build agents with your voice</p>
-            </div>
-          </button>
-        </div>
       </div>
-
-      <WizardPanel
-        wizardActive={wizardActive}
-        onAgentCreated={handleAgentCreated}
-      />
 
       {/* Recent Activity */}
       <div>
