@@ -176,18 +176,20 @@ export async function POST(request) {
       let wizardExists = false;
       if (listRes.ok) {
         const listData = await listRes.json();
-        wizardExists = listData.data?.some(r => r.name === 'wizard-agent');
+        wizardExists = listData.data?.some(r =>
+          r.display_name === 'wizard-agent' || r.swml_webhook?.name === 'wizard-agent'
+        );
       }
 
       if (!wizardExists) {
-        await fetch(`${baseUrl}/api/fabric/resources`, {
+        await fetch(`${baseUrl}/api/fabric/resources/swml_webhooks`, {
           method: 'POST',
           headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: 'wizard-agent',
             display_name: 'Setup Wizard',
-            type: 'swml_webhook',
-            swml_webhook: { url: wizardWebhookUrl },
+            primary_request_url: wizardWebhookUrl,
+            primary_request_method: 'POST',
           }),
         });
         console.log('[Connect] Created wizard-agent resource');
