@@ -741,6 +741,39 @@ class WizardAgent(AgentBase):
 
         self.set_param("temperature", 0.8)
 
+        # Configure post-prompt for call logging
+        self.set_post_prompt(
+            "Summarize this wizard session as JSON with exactly these fields:\n"
+            '- "summary": 2-3 sentence summary of what was discussed/created\n'
+            '- "caller_intent": what the user wanted to build\n'
+            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
+            '- "sentiment": one of "positive", "neutral", or "negative"\n'
+            '- "topics": array of topic keyword strings\n'
+            '- "follow_up": any action items or follow-up needed (null if none)\n'
+            "Respond ONLY with the JSON object, no extra text."
+        )
+
+    def on_swml_request(self, request_data=None, callback_path=None, request=None):
+        """Override to set post_prompt_url dynamically based on the request host."""
+        host = None
+        protocol = 'https'
+
+        if request:
+            host = request.headers.get('x-forwarded-host') or request.headers.get('host')
+            protocol = request.headers.get('x-forwarded-proto', 'https')
+            if host and ('localhost' in host or '127.0.0.1' in host):
+                protocol = 'http'
+
+        post_prompt_domain = APP_DOMAIN or (f"{protocol}://{host}" if host else None)
+        if post_prompt_domain:
+            post_prompt_path = f"{post_prompt_domain}/api/post-prompt/wizard"
+            self.set_post_prompt_url(post_prompt_path)
+            logger.info(f"[wizard] Set post_prompt_url to: {post_prompt_path}")
+        else:
+            logger.warning("[wizard] Cannot set post_prompt_url — no domain available")
+
+        return super().on_swml_request(request_data, callback_path, request)
+
     # ------------------------------------------------------------------
     # SWAIG Functions
     # ------------------------------------------------------------------
