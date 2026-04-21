@@ -836,6 +836,7 @@ class WizardAgent(AgentBase):
         }
     )
     def ask_config_question(self, args, raw_data):
+        logger.info(f"[WizardAgent.ask_config_question] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         question = args.get("question", "")
         options = args.get("options", [])
         field = args.get("field", "")
@@ -851,6 +852,7 @@ class WizardAgent(AgentBase):
             "options": options,
             "field": field
         })
+        logger.info(f"[WizardAgent.ask_config_question] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -893,6 +895,7 @@ class WizardAgent(AgentBase):
         }
     )
     def preview_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.preview_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         name = args.get("name", "New Agent")
         role = args.get("role", "Assistant")
         prompt_summary = args.get("prompt_summary", "")
@@ -916,6 +919,7 @@ class WizardAgent(AgentBase):
             "greeting": greeting,
             "prompt": prompt
         })
+        logger.info(f"[WizardAgent.preview_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -953,6 +957,7 @@ class WizardAgent(AgentBase):
         }
     )
     def update_agent_preview(self, args, raw_data):
+        logger.info(f"[WizardAgent.update_agent_preview] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         logger.info(f"[wizard] update_agent_preview: {list(args.keys())}")
 
         result = SwaigFunctionResult(
@@ -962,6 +967,7 @@ class WizardAgent(AgentBase):
             "type": "agent_preview",
             **{k: v for k, v in args.items() if v is not None}
         })
+        logger.info(f"[WizardAgent.update_agent_preview] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -1008,6 +1014,7 @@ class WizardAgent(AgentBase):
         }
     )
     def create_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.create_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         name = args.get("name", "New Agent")
         role = args.get("role", "Assistant")
         greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you?")
@@ -1067,6 +1074,7 @@ class WizardAgent(AgentBase):
             "employee": employee_config,
             "swml_route": f"/swml/{employee_id}"
         })
+        logger.info(f"[WizardAgent.create_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -1088,6 +1096,7 @@ class WizardAgent(AgentBase):
         }
     )
     def finalize_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.finalize_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         employee_id = args.get("employee_id", "")
         message = args.get("message", "Your agent is ready to take calls!")
 
@@ -1102,6 +1111,7 @@ class WizardAgent(AgentBase):
             "employee_id": employee_id,
             "message": message
         })
+        logger.info(f"[WizardAgent.finalize_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -1113,6 +1123,7 @@ class WizardAgent(AgentBase):
         }
     )
     def list_available_functions(self, args, raw_data):
+        logger.info(f"[WizardAgent.list_available_functions] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         logger.info("[wizard] list_available_functions called")
 
         functions_list = (
@@ -1126,6 +1137,7 @@ class WizardAgent(AgentBase):
             "- end_call: Politely end the call when the conversation is complete\n"
             "- search_knowledge: Search uploaded documents to answer caller questions"
         )
+        logger.info(f"[WizardAgent.list_available_functions] RETURNING")
         return SwaigFunctionResult(functions_list)
 
 

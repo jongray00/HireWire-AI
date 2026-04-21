@@ -15,6 +15,7 @@ vi.mock("@/app/hooks/useWizardCall", () => ({
       connectionState: "connected",
       error: null,
       videoRef: { current: null },
+      debugLog: [],
     };
   },
 }));

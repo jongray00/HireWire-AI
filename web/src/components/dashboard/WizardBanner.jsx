@@ -44,8 +44,11 @@ export default function WizardBanner({ onAgentCreated }) {
     window.dispatchEvent(new CustomEvent("wizard-event", { detail: parsed.data }));
   }, [onAgentCreated]);
 
-  const { startCall, endCall, calling, connected, connectionState, error, videoRef } =
+  const { startCall, endCall, calling, connected, connectionState, error, videoRef, debugLog = [] } =
     useWizardCall({ onEvent: handleWizardEvent });
+  const [showDebug, setShowDebug] = useState(false);
+  const micStatus = [...debugLog].reverse().find((d) => d.kind === "mic:permission" || d.kind === "mic:permission-changed")?.detail || "unknown";
+  const lastRtcCheck = [...debugLog].reverse().find((d) => d.kind.startsWith("rtc:"))?.detail;
 
   // Reset wizard state when call ends
   useEffect(() => {
@@ -257,6 +260,33 @@ export default function WizardBanner({ onAgentCreated }) {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Debug panel */}
+        <div className="border-t border-purple-500/20 px-4 py-2 text-xs text-gray-400">
+          <button
+            type="button"
+            onClick={() => setShowDebug((s) => !s)}
+            className="flex items-center gap-2 hover:text-gray-200 transition-colors"
+          >
+            <span className="font-mono">Debug</span>
+            <span className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded">
+              mic: {String(micStatus)}
+            </span>
+            <span className="text-[10px] text-gray-500">({debugLog.length} events)</span>
+            <span className="text-[10px] text-gray-500">{showDebug ? "▲" : "▼"}</span>
+          </button>
+          {showDebug && (
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5 font-mono text-[10px] bg-black/30 rounded p-2">
+              {debugLog.slice().reverse().map((e, i) => (
+                <div key={`${e.t}-${i}`} className="flex gap-2">
+                  <span className="text-gray-500 shrink-0">{new Date(e.t).toLocaleTimeString()}</span>
+                  <span className="text-purple-300 shrink-0">{e.kind}</span>
+                  <span className="text-gray-300 break-all">{typeof e.detail === "object" ? JSON.stringify(e.detail) : String(e.detail)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
