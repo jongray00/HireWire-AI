@@ -61,38 +61,26 @@ describe("WizardBanner", () => {
     expect(screen.getByText("Live")).toBeDefined();
   });
 
-  it("shows question when agent_config_question event fires", () => {
+  it("shows 'Speak to the wizard...' hint during active call with no events", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+    window.__testWizardConnectionState = "connected";
+    render(<WizardBanner />);
+    expect(screen.getByText(/Speak to the wizard/i)).toBeDefined();
+  });
+
+  it("does NOT render preview/question/created cards anymore (canvas owns those)", () => {
     window.__testWizardCalling = true;
     window.__testWizardConnected = true;
     window.__testWizardConnectionState = "connected";
     const { rerender } = render(<WizardBanner />);
-
     window.__testWizardOnEvent({
-      type: "agent_config_question",
-      question: "What should it do?",
-      options: ["Support", "Sales"],
+      type: "agent_preview",
+      name: "Sarah",
+      role: "Support",
     });
     rerender(<WizardBanner />);
-
-    expect(screen.getByText("What should it do?")).toBeDefined();
-    expect(screen.getByText("Support")).toBeDefined();
-    expect(screen.getByText("Sales")).toBeDefined();
-  });
-
-  it("shows agent created confirmation", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
-    window.__testWizardConnectionState = "connected";
-    const onCreated = vi.fn();
-    const { rerender } = render(<WizardBanner onAgentCreated={onCreated} />);
-
-    window.__testWizardOnEvent({
-      type: "agent_created",
-      employee: { name: "Test Agent", role: "Support", id: "abc" },
-    });
-    rerender(<WizardBanner onAgentCreated={onCreated} />);
-
-    expect(screen.getByText(/Created: Test Agent/)).toBeDefined();
-    expect(onCreated).toHaveBeenCalledWith({ name: "Test Agent", role: "Support", id: "abc" });
+    // Sarah's name should NOT appear in the banner — canvas renders it
+    expect(screen.queryByText("Sarah")).toBeNull();
   });
 });

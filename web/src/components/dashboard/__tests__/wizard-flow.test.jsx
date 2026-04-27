@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, act } from "@testing-library/react";
 import WizardBanner from "../WizardBanner";
 
 // Mock useWizardCall to expose onEvent
@@ -21,39 +21,43 @@ vi.mock("@/app/hooks/useWizardCall", () => ({
 }));
 
 describe("Wizard Flow Integration", () => {
-  it("handles full wizard flow: question → preview → created → ready", () => {
-    const onCreated = vi.fn();
-    const { rerender } = render(<WizardBanner onAgentCreated={onCreated} />);
+  it("broadcasts all wizard events via window wizard-event (banner no longer renders cards)", () => {
+    const dispatchedEvents = [];
+    const listener = (e) => dispatchedEvents.push(e.detail);
+    window.addEventListener("wizard-event", listener);
 
-    // Step 1: Wizard asks a question
+    render(<WizardBanner />);
+
+    // Step 1: question event → broadcast
     act(() => {
       capturedOnEvent({ type: "agent_config_question", question: "What kind of agent?", options: ["Support", "Sales"], field: "role" });
     });
-    rerender(<WizardBanner onAgentCreated={onCreated} />);
-    expect(screen.getByText("What kind of agent?")).toBeDefined();
-    expect(screen.getByText("Support")).toBeDefined();
+    expect(dispatchedEvents).toHaveLength(1);
+    expect(dispatchedEvents[0].type).toBe("agent_config_question");
+    expect(dispatchedEvents[0].question).toBe("What kind of agent?");
 
-    // Step 2: Wizard shows preview
+    // Step 2: preview event → broadcast
     act(() => {
       capturedOnEvent({ type: "agent_preview", name: "Support Bot", role: "Customer Support", voice: "openai.nova", functions: ["transfer_to_human", "end_call"] });
     });
-    rerender(<WizardBanner onAgentCreated={onCreated} />);
-    expect(screen.getByText("Support Bot")).toBeDefined();
-    expect(screen.getByText("Preview")).toBeDefined();
+    expect(dispatchedEvents).toHaveLength(2);
+    expect(dispatchedEvents[1].type).toBe("agent_preview");
+    expect(dispatchedEvents[1].name).toBe("Support Bot");
 
-    // Step 3: Agent created
+    // Step 3: created event → broadcast
     act(() => {
       capturedOnEvent({ type: "agent_created", employee: { name: "Support Bot", role: "Customer Support", id: "abc123" } });
     });
-    rerender(<WizardBanner onAgentCreated={onCreated} />);
-    expect(screen.getByText(/Created: Support Bot/)).toBeDefined();
-    expect(onCreated).toHaveBeenCalledWith({ name: "Support Bot", role: "Customer Support", id: "abc123" });
+    expect(dispatchedEvents).toHaveLength(3);
+    expect(dispatchedEvents[2].type).toBe("agent_created");
 
-    // Step 4: Agent ready
+    // Step 4: ready event → broadcast
     act(() => {
       capturedOnEvent({ type: "agent_ready", employee_id: "abc123", swml_route: "/swml/abc123" });
     });
-    rerender(<WizardBanner onAgentCreated={onCreated} />);
-    expect(screen.getByText("Ready")).toBeDefined();
+    expect(dispatchedEvents).toHaveLength(4);
+    expect(dispatchedEvents[3].type).toBe("agent_ready");
+
+    window.removeEventListener("wizard-event", listener);
   });
 });
