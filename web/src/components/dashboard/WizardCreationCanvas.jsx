@@ -100,25 +100,35 @@ export default function WizardCreationCanvas() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
     >
       <div className="w-[85vw] h-[80vh] max-w-6xl bg-gray-900 border border-purple-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header — placeholder; populated in Task 12 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-purple-500/20">
           <div className="flex items-center gap-3">
             <Wand2 className="w-5 h-5 text-purple-400" />
             <span className="font-medium text-white">Setup Wizard</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckpointDot label="Identity" state={checkpoints.identity ? "passed" : "pending"} testid="checkpoint-identity" />
+            <span className="text-gray-600">━</span>
+            <CheckpointDot label="Voice" state={checkpoints.voice ? "passed" : "pending"} testid="checkpoint-voice" />
+            <span className="text-gray-600">━</span>
+            <CheckpointDot label="Capabilities" state={checkpoints.capabilities ? "passed" : "pending"} testid="checkpoint-capabilities" />
+            <span className="text-gray-600">━</span>
+            <CheckpointDot label="Review" state={checkpoints.review ? "passed" : "pending"} testid="checkpoint-review" />
+          </div>
+          <div className="flex items-center gap-3">
             {connectionState === "connected" && (
               <span className="text-xs text-green-400">● Live</span>
             )}
+            {!isCallActive && (
+              <button
+                type="button"
+                onClick={handleDismiss}
+                aria-label="Close wizard canvas"
+                className="p-1.5 text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
-          {!isCallActive && (
-            <button
-              type="button"
-              onClick={handleDismiss}
-              aria-label="Close wizard canvas"
-              className="p-1.5 text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
         </div>
 
         {/* Body — placeholder; populated in Tasks 11-13 */}
@@ -140,11 +150,65 @@ export default function WizardCreationCanvas() {
               </div>
             ))}
           </div>
-          <div data-testid="wizard-config" className="p-6 overflow-y-auto">
-            {currentQuestion && <div>{currentQuestion.question}</div>}
+          <div data-testid="wizard-config" className="p-6 overflow-y-auto space-y-4">
+            <div className="text-xs uppercase tracking-wide text-gray-500 mb-3">🤖 Building agent</div>
+            <ConfigField label="Name" value={config.name} />
+            <ConfigField label="Role" value={config.role} />
+            <ConfigField label="Voice" value={config.voice} />
+            <ConfigField label="Greeting" value={config.greeting} />
+            <ConfigField
+              label="Capabilities"
+              value={config.functions?.length ? config.functions.join(", ") : null}
+            />
+            <ConfigField label="Knowledge" value={config.knowledgeDocs?.length ? `${config.knowledgeDocs.length} docs` : null} />
+            <ConfigField label="Hours" value={config.businessHours} />
+
+            {currentQuestion && (
+              <div className="mt-6 p-4 bg-purple-900/30 border border-purple-500/40 rounded-lg">
+                <p className="text-sm text-white font-medium mb-2">{currentQuestion.question}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {currentQuestion.options?.map((opt, i) => (
+                    <span key={i} className="px-2.5 py-1 bg-purple-600/30 border border-purple-500/40 rounded-lg text-xs text-purple-200">
+                      {opt}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {config.prompt && (
+              <div className="mt-6 pt-4 border-t border-purple-500/20">
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Prompt preview</div>
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">{config.prompt}</pre>
+              </div>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ConfigField({ label, value }) {
+  return (
+    <div className="flex items-baseline gap-3">
+      <span className="text-xs uppercase tracking-wide text-gray-500 w-24 shrink-0">{label}</span>
+      <span className={`text-sm ${value ? "text-white" : "text-gray-600 italic"}`}>
+        {value || "—"}
+      </span>
+    </div>
+  );
+}
+
+function CheckpointDot({ label, state, testid }) {
+  const colors = {
+    pending: "bg-gray-700 text-gray-500",
+    passed: "bg-purple-600 text-white",
+  };
+  return (
+    <div data-testid={testid} data-state={state} className="flex items-center gap-1.5">
+      <span className={`w-2.5 h-2.5 rounded-full ${colors[state]}`} />
+      <span className={`text-xs ${state === "passed" ? "text-purple-300" : "text-gray-500"}`}>{label}</span>
     </div>
   );
 }

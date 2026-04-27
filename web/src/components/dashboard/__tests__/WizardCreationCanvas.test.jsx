@@ -103,3 +103,57 @@ describe("WizardCreationCanvas — transcript", () => {
     expect(transcriptCol.textContent).not.toContain("hel ");
   });
 });
+
+describe("WizardCreationCanvas — config + stepper", () => {
+  beforeEach(() => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+  });
+
+  it("renders config fields as agent_preview events arrive", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => {
+      capturedOnEvent({
+        type: "agent_preview",
+        name: "Sarah",
+        role: "Billing Support",
+        voice: "openai.shimmer",
+      });
+    });
+    rerender(<WizardCreationCanvas />);
+    const config = screen.getByTestId("wizard-config");
+    expect(config.textContent).toContain("Sarah");
+    expect(config.textContent).toContain("Billing Support");
+    expect(config.textContent).toContain("openai.shimmer");
+  });
+
+  it("merges update_agent_preview into existing config", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah", role: "Support" }); });
+    act(() => { capturedOnEvent({ type: "agent_preview", voice: "openai.nova", greeting: "Hi!" }); });
+    rerender(<WizardCreationCanvas />);
+    const config = screen.getByTestId("wizard-config");
+    expect(config.textContent).toContain("Sarah");
+    expect(config.textContent).toContain("openai.nova");
+    expect(config.textContent).toContain("Hi!");
+  });
+
+  it("checkpoint stepper advances on wizard_checkpoint events", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
+    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "identity" }); });
+    rerender(<WizardCreationCanvas />);
+    expect(screen.getByTestId("checkpoint-identity")).toHaveAttribute("data-state", "passed");
+    expect(screen.getByTestId("checkpoint-voice")).toHaveAttribute("data-state", "pending");
+  });
+
+  it("out-of-order checkpoints don't regress earlier ones", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
+    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "identity" }); });
+    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "voice" }); });
+    rerender(<WizardCreationCanvas />);
+    expect(screen.getByTestId("checkpoint-identity")).toHaveAttribute("data-state", "passed");
+    expect(screen.getByTestId("checkpoint-voice")).toHaveAttribute("data-state", "passed");
+  });
+});
