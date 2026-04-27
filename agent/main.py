@@ -744,8 +744,17 @@ def _wizard_lookup_user_credentials(project_id: str) -> Optional[Dict[str, str]]
         return None
 
 
+# Track in-flight create_agent calls per (call_id, name) so SignalWire's
+# tool-call retries don't create duplicate employees.
+_wizard_create_inflight: Dict[str, Dict[str, Any]] = {}
+
+
 def _wizard_create_employee_via_frontend(employee_data: Dict[str, Any], credentials: Dict[str, str]) -> Dict[str, Any]:
     """POST to the frontend's create-virtual-employee orchestration.
+
+    The orchestration verifies the SWML webhook (~10s), creates a SignalWire
+    Fabric resource, and persists to SQLite — typically 5-15s, but can exceed
+    30s if ngrok is slow. We wait up to 120s before giving up.
 
     Returns the parsed JSON response (with .employee + callFabricAddress)
     or raises an exception with a useful message.
@@ -759,7 +768,7 @@ def _wizard_create_employee_via_frontend(employee_data: Dict[str, Any], credenti
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=30.0) as resp:
+        with urllib.request.urlopen(req, timeout=120.0) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         try:
@@ -820,35 +829,28 @@ class WizardAgent(AgentBase):
 
         # ---------- §2 Discovery ----------
         self.prompt_add_section(
-            "Discovery — read the user's intent first",
+            "Discovery — one open question, then build",
             bullets=[
-                "HARD RULE: Never call preview_agent until you have explicitly asked the user \"What should we call this agent?\" (or equivalent) and received their answer. NEVER invent a name from the user's company, role description, or your own preference. The agent's name comes from the user, period.",
-                "HARD RULE: Always ask for the agent's role/purpose explicitly too. Don't infer it — confirm with the user.",
-                "Open with a 1-line greeting and a single open question: \"What kind of agent would you like to build today?\"",
-                "Listen to the answer and silently classify the user as one of: Specific (concrete use case), Vague (\"just build me something\"), Template-seeking (names a known type), Iterating (references an existing agent), or Curious/browsing.",
-                "Specific: still ask explicitly for the agent's name and confirm the role they described.",
-                "Vague: offer 3–4 starting points via ask_config_question (Sales / Support / Scheduling / Knowledge concierge), then ask for the name once they pick.",
-                "Template-seeking: confirm and proceed with that template's defaults — but still ask for the name.",
-                "Iterating: acknowledge, copy what they referenced, ask for the new name, and only collect the diffs.",
-                "Curious/browsing: briefly enumerate the four archetypes above, then re-ask.",
-                "Only after the user has explicitly told you the agent's name AND role, call preview_agent with those values, then call mark_checkpoint(\"identity\")."
+                "Open with a brief greeting (one sentence) and a single open question: \"Tell me about the agent you'd like to build — what should it do, and who's it for?\"",
+                "LISTEN to the user's full description before doing anything. Don't interrupt to ask for a name or role yet.",
+                "From their description, derive everything you can yourself: a sensible agent name (e.g. \"Sarah\" for a sales rep, \"Max\" for support), a clear role title, a short prompt summarizing the job, a friendly greeting line, a sensible voice (openai.nova for warm, openai.shimmer for upbeat, openai.alloy for neutral/professional), and a small set of capabilities that fit the use case.",
+                "Immediately call preview_agent with all of those derived values, THEN say something like \"I'm building this up for you — take a look at the canvas\" so the user knows to glance at the screen.",
+                "Then call mark_checkpoint(\"identity\")."
             ]
         )
 
         # ---------- §3 Building ----------
         self.prompt_add_section(
-            "Building — fill in the rest",
+            "Building — confirm and refine quickly",
             bullets=[
-                "HARD RULE: mark_checkpoint MUST be called in exactly this order: identity → voice → capabilities → review. Never skip a stage. Each stage must be called at most once. If you're tempted to call mark_checkpoint(\"review\") and you haven't already called identity/voice/capabilities, STOP and back up — you missed a step.",
-                "HARD RULE: Before mark_checkpoint(\"voice\") — the user must have confirmed the voice choice AND the greeting wording.",
-                "HARD RULE: Before mark_checkpoint(\"capabilities\") — the user must have explicitly chosen at least one capability AND configured any per-capability parameters (transfer phone for transfer_to_human, hours for check_business_hours, KB docs for search_knowledge, etc.).",
-                "Always emit preview_agent immediately after the user has given a name + role — but never before. The user wants to see progress in the canvas.",
-                "Use voice-only for free-form fields: name, greeting wording, custom prompt phrasing, what to say when transferring.",
-                "Use ask_config_question for fixed sets: voice (openai.shimmer / openai.nova / openai.alloy), pace (friendly / professional / direct), capabilities (multi-select).",
-                "After voice + greeting are confirmed by the user, call mark_checkpoint(\"voice\").",
-                "For capabilities, present them as multi-select via ask_config_question (use list_available_functions for the current set). After the user picks, call update_agent_preview with the function list, then walk through any per-capability config. When all selected capabilities are configured, call mark_checkpoint(\"capabilities\").",
-                "Use update_agent_preview aggressively — every field change fires it. The canvas is watching.",
-                "Keep spoken responses short (at most 2 sentences) while the canvas is doing the visual work."
+                "Your goal is to ask AS FEW QUESTIONS AS POSSIBLE. The user described the agent — your job is to make sensible choices and confirm them, not to interrogate.",
+                "After the initial preview, narrate briefly: \"I'm setting up [name] as a [role] — they'll [1-2 capabilities] and use a [voice trait] voice. How does that look?\"",
+                "If the user accepts, call mark_checkpoint(\"voice\") and mark_checkpoint(\"capabilities\") in quick succession (you've made the choices, the user confirmed) and move to recap.",
+                "If the user wants changes, use update_agent_preview to apply them. Only ask follow-up questions for things you couldn't infer (e.g., \"What's the phone number to transfer to?\" when they enable transfer_to_human).",
+                "When the user is unsure between options for ONE field, use ask_config_question with 2-4 options (e.g., voice). Don't bombard them with sequential ask_config_question calls — pick the most important undecided field.",
+                "HARD RULE: mark_checkpoint must fire in order (identity → voice → capabilities → review), each at most once. Don't skip a stage even if you're moving fast.",
+                "Use update_agent_preview every time you change a field — the canvas reflects updates live.",
+                "Keep spoken responses under 2 sentences. The canvas does the visual heavy lifting."
             ]
         )
 
@@ -1182,6 +1184,25 @@ class WizardAgent(AgentBase):
         temperature = args.get("temperature", 0.7)
         functions = args.get("functions", ["transfer_to_human", "end_call"])
 
+        # Dedup guard: SignalWire retries SWAIG calls if a tool exceeds its
+        # response timeout. Without this guard each retry creates a new
+        # employee. Key the in-flight map by (call_id, name) so a genuinely
+        # different agent in the same call still works.
+        call_id = (raw_data or {}).get("call_id", "") if isinstance(raw_data, dict) else ""
+        dedup_key = f"{call_id}:{name}"
+        existing = _wizard_create_inflight.get(dedup_key)
+        if existing:
+            if existing.get("status") == "done":
+                logger.info(f"[wizard] create_agent: returning cached result for {dedup_key}")
+                return existing["result"]
+            # Still in progress — return a "we're working on it" response.
+            logger.info(f"[wizard] create_agent: orchestration already in flight for {dedup_key}, acknowledging")
+            ack_text = f"I'm still building {name}. Please give it a moment."
+            ack = SwaigFunctionResult(ack_text)
+            ack.swml_user_event({"type": "wizard_said", "text": ack_text})
+            return ack
+        _wizard_create_inflight[dedup_key] = {"status": "in_flight"}
+
         # Orchestrate via the frontend route so the agent gets a real
         # SignalWire SWML resource, a callFabricAddress, and a SQLite row —
         # the same path used by the dashboard's "Create Employee" button.
@@ -1195,6 +1216,7 @@ class WizardAgent(AgentBase):
             )
             result = SwaigFunctionResult(err_text)
             result.swml_user_event({"type": "wizard_said", "text": err_text})
+            _wizard_create_inflight.pop(dedup_key, None)
             return result
 
         employee_data = {
@@ -1216,6 +1238,7 @@ class WizardAgent(AgentBase):
             err_text = f"The build didn't go through — {e}. Want to try again?"
             result = SwaigFunctionResult(err_text)
             result.swml_user_event({"type": "wizard_said", "text": err_text})
+            _wizard_create_inflight.pop(dedup_key, None)
             return result
 
         employee = response.get("employee") or {}
@@ -1237,6 +1260,9 @@ class WizardAgent(AgentBase):
             "text": f"Your agent {name} has been created and is live! "
                     "I've updated the dashboard. Give it a moment to load, then you can make your first call."
         })
+        # Cache the successful result so any retry within this call returns the same agent
+        # rather than creating a duplicate.
+        _wizard_create_inflight[dedup_key] = {"status": "done", "result": result, "employee": employee}
         logger.info(f"[WizardAgent.create_agent] RETURNING")
         return result
 
@@ -1655,6 +1681,42 @@ async def get_agent_info():
 
 
 # Health check endpoint
+@app.post("/api/post-prompt/{path:path}")
+async def proxy_post_prompt(path: str, request: Request):
+    """Proxy post-prompt webhooks from SignalWire to the frontend.
+
+    SignalWire calls the post_prompt_url that's set during on_swml_request — this
+    URL is built from APP_DOMAIN (the ngrok tunnel) which forwards port 8000 to
+    the agent. The post-prompt route lives in the frontend (port 5001), so we
+    forward the full body and headers there. Returns the frontend's response.
+    """
+    try:
+        body = await request.body()
+        target = f"{FRONTEND_URL}/api/post-prompt/{path}"
+        logger.info(f"[post-prompt proxy] forwarding to {target} ({len(body)} bytes)")
+        forward_req = urllib.request.Request(
+            target,
+            data=body,
+            method="POST",
+            headers={"Content-Type": request.headers.get("content-type", "application/json")},
+        )
+        with urllib.request.urlopen(forward_req, timeout=30.0) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode()
+        except Exception:
+            err_body = str(e)
+        logger.error(f"[post-prompt proxy] frontend returned {e.code}: {err_body}")
+        raise HTTPException(status_code=e.code, detail=err_body)
+    except urllib.error.URLError as e:
+        logger.error(f"[post-prompt proxy] could not reach frontend: {e.reason}")
+        raise HTTPException(status_code=502, detail=f"could not reach frontend at {FRONTEND_URL}: {e.reason}")
+    except Exception as e:
+        logger.error(f"[post-prompt proxy] unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
