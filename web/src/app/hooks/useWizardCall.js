@@ -91,11 +91,25 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
         throw new Error("Not authenticated");
       }
 
-      // 2. Get Fabric token
+      // 2. Get Fabric token. Use a per-tab subscriber reference so a stale
+      // authblock on a long-lived shared subscriber can't break new sessions.
+      // The reference persists for the tab's lifetime so concurrent retries
+      // within one call reuse it; opening a new tab gets a fresh subscriber.
+      let subscriberReference;
+      try {
+        subscriberReference = sessionStorage.getItem("sally_wizard_subscriber_ref");
+        if (!subscriberReference) {
+          subscriberReference = `sally_wizard_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          sessionStorage.setItem("sally_wizard_subscriber_ref", subscriberReference);
+        }
+      } catch {
+        subscriberReference = `sally_wizard_${Date.now()}`;
+      }
+      appendDebug("subscriber:reference", subscriberReference);
       const tokenRes = await fetch("/api/signalwire/widget-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscriberReference: "sally_sales_default_user" }),
+        body: JSON.stringify({ subscriberReference }),
       });
 
       if (!tokenRes.ok) {
