@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import Database from "better-sqlite3";
+import { upsertUser, getEmployeesByProject, getEmployeeById, getDb } from "../db.ts";
 
 let tmpDir;
 let dbPath;
@@ -71,5 +72,34 @@ describe("db migrations", () => {
     expect(emp.name).toBe("Alice");
     const log = db.prepare("SELECT * FROM call_logs WHERE id = ?").get("c1");
     expect(log.employee_id).toBe("e1");
+  });
+});
+
+describe("wizard pseudo-employee", () => {
+  it("upsertUser seeds a hidden wizard pseudo-employee for the project", () => {
+    upsertUser({ projectId: "p1", spaceUrl: "s.signalwire.com", apiToken: "t" });
+    const wizard = getEmployeeById("wizard-p1");
+    expect(wizard).toBeDefined();
+    expect(wizard.kind).toBe("wizard");
+    expect(wizard.is_hidden).toBe(1);
+    expect(wizard.project_id).toBe("p1");
+  });
+
+  it("seed is idempotent — calling upsertUser twice produces one wizard row", () => {
+    upsertUser({ projectId: "p1", spaceUrl: "s.signalwire.com", apiToken: "t" });
+    upsertUser({ projectId: "p1", spaceUrl: "s.signalwire.com", apiToken: "t" });
+    const db = getDb();
+    const rows = db.prepare("SELECT id FROM employees WHERE id = ?").all("wizard-p1");
+    expect(rows.length).toBe(1);
+  });
+
+  it("getEmployeesByProject excludes wizard rows", () => {
+    upsertUser({ projectId: "p1", spaceUrl: "s.signalwire.com", apiToken: "t" });
+    const db = getDb();
+    db.prepare(
+      "INSERT INTO employees (id, project_id, name, role, kind, is_hidden) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run("e1", "p1", "Alice", "Sales", "employee", 0);
+    const employees = getEmployeesByProject("p1");
+    expect(employees.map((e) => e.id)).toEqual(["e1"]);
   });
 });

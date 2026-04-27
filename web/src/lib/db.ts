@@ -188,6 +188,13 @@ export function upsertUser(data: {
     subscriberId: data.subscriberId || null,
     subscriberData: data.subscriberData ? JSON.stringify(data.subscriberData) : null,
   });
+
+  // Seed a hidden wizard pseudo-employee for this project so post-prompt
+  // call logs can use it as the FK target without violating constraints.
+  db.prepare(`
+    INSERT OR IGNORE INTO employees (id, project_id, name, role, kind, is_hidden)
+    VALUES (?, ?, 'Setup Wizard', 'Agent Builder', 'wizard', 1)
+  `).run(`wizard-${data.projectId}`, data.projectId);
 }
 
 export function getUserByProjectId(projectId: string) {
@@ -201,12 +208,16 @@ export function getUserByProjectId(projectId: string) {
 
 export function getEmployeesByProject(projectId: string) {
   const db = getDb();
-  return db.prepare('SELECT * FROM employees WHERE project_id = ? AND status = ? ORDER BY created_at DESC').all(projectId, 'active') as any[];
+  return db.prepare(
+    "SELECT * FROM employees WHERE project_id = ? AND status = ? AND is_hidden = 0 AND kind = 'employee' ORDER BY created_at DESC"
+  ).all(projectId, 'active') as any[];
 }
 
 export function getAllEmployees() {
   const db = getDb();
-  return db.prepare('SELECT * FROM employees WHERE status = ? ORDER BY created_at DESC').all('active') as any[];
+  return db.prepare(
+    "SELECT * FROM employees WHERE status = ? AND is_hidden = 0 AND kind = 'employee' ORDER BY created_at DESC"
+  ).all('active') as any[];
 }
 
 export function getEmployeeById(id: string) {
