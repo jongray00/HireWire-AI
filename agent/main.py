@@ -852,6 +852,10 @@ class WizardAgent(AgentBase):
             "options": options,
             "field": field
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "I've displayed the options on your screen. Take a look and let me know which one feels right."
+        })
         logger.info(f"[WizardAgent.ask_config_question] RETURNING")
         return result
 
@@ -919,6 +923,10 @@ class WizardAgent(AgentBase):
             "greeting": greeting,
             "prompt": prompt
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": f"I've shown a preview of {name} on your screen. Does that look good, or would you like to make any changes?"
+        })
         logger.info(f"[WizardAgent.preview_agent] RETURNING")
         return result
 
@@ -966,6 +974,10 @@ class WizardAgent(AgentBase):
         result.swml_user_event({
             "type": "agent_preview",
             **{k: v for k, v in args.items() if v is not None}
+        })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "I've updated the preview on your screen with those changes."
         })
         logger.info(f"[WizardAgent.update_agent_preview] RETURNING")
         return result
@@ -1102,6 +1114,11 @@ class WizardAgent(AgentBase):
             "employee": employee_config,
             "swml_route": f"/swml/{employee_id}"
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": f"Your agent {name} has been created and is live! "
+                    "I've updated the dashboard. Give it a moment to load, then you can make your first call."
+        })
         logger.info(f"[WizardAgent.create_agent] RETURNING")
         return result
 
@@ -1138,6 +1155,11 @@ class WizardAgent(AgentBase):
             "type": "agent_ready",
             "employee_id": employee_id,
             "message": message
+        })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "Your agent is all set and ready to go. Is there anything else you'd like to adjust, "
+                    "or would you like to create another agent?"
         })
         logger.info(f"[WizardAgent.finalize_agent] RETURNING")
         return result
