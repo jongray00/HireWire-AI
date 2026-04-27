@@ -131,7 +131,28 @@ export default function WizardCreationCanvas() {
           </div>
         </div>
 
-        {/* Body — placeholder; populated in Tasks 11-13 */}
+        {createdAgent && (
+          <div className="px-6 py-4 bg-gradient-to-r from-green-900/30 to-purple-900/30 border-b border-green-500/30 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✨</span>
+              <div>
+                <p className="text-sm font-medium text-green-300">{createdAgent.name} is ready</p>
+                <p className="text-xs text-gray-400">{createdAgent.role}</p>
+              </div>
+            </div>
+            {readyAgent && (
+              <button
+                type="button"
+                aria-label="Call your new agent"
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium text-white transition-colors"
+              >
+                Call your new agent
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Body — populated in Tasks 11-13 */}
         <div className="flex-1 grid grid-cols-2 divide-x divide-purple-500/20 overflow-hidden">
           <div
             data-testid="wizard-transcript"

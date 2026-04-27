@@ -157,3 +157,38 @@ describe("WizardCreationCanvas — config + stepper", () => {
     expect(screen.getByTestId("checkpoint-voice")).toHaveAttribute("data-state", "passed");
   });
 });
+
+describe("WizardCreationCanvas — created/ready states", () => {
+  it("shows celebratory state on agent_created", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => {
+      capturedOnEvent({
+        type: "agent_created",
+        employee: { id: "e1", name: "Sarah", role: "Support" }
+      });
+    });
+    rerender(<WizardCreationCanvas />);
+    expect(screen.getByText(/Sarah is ready/i)).toBeDefined();
+  });
+
+  it("shows 'Call your new agent' CTA after agent_ready", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_created", employee: { id: "e1", name: "Sarah" } }); });
+    act(() => { capturedOnEvent({ type: "agent_ready", employee_id: "e1", swml_route: "/swml/e1" }); });
+    rerender(<WizardCreationCanvas />);
+    expect(screen.getByRole("button", { name: /call your new agent/i })).toBeDefined();
+  });
+
+  it("close button is disabled while call is active", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
+    rerender(<WizardCreationCanvas />);
+    expect(screen.queryByLabelText("Close wizard canvas")).toBeNull();
+  });
+});
