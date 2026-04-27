@@ -11,9 +11,10 @@ import { useState, useRef, useCallback, useEffect } from "react";
  *
  * @param {object} [options]
  * @param {(event: object) => void} [options.onEvent] - Called on wizard SWAIG events (agent_preview, agent_config_question, agent_created, agent_ready)
+ * @param {(entry: {role: string, text: string, isPartial: boolean, t: number}) => void} [options.onTranscript] - Called for live transcript entries (wizard_said events and SDK partial recognition)
  * @returns {{ startCall, endCall, calling, connected, connectionState, error, videoRef, debugLog }}
  */
-export function useWizardCall({ onEvent } = {}) {
+export function useWizardCall({ onEvent, onTranscript } = {}) {
   const [calling, setCalling] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
@@ -23,9 +24,11 @@ export function useWizardCall({ onEvent } = {}) {
   const clientRef = useRef(null);
   const sessionRef = useRef(null);
 
-  // I2: Keep onEvent ref stable so the listener always calls the latest callback.
+  // I2: Keep onEvent/onTranscript refs stable so listeners always call the latest callbacks.
   const onEventRef = useRef(onEvent);
   useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
+  const onTranscriptRef = useRef(onTranscript);
+  useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
 
   // C1: Unmount cleanup — hang up any active call and release SDK references.
   useEffect(() => {
@@ -114,11 +117,40 @@ export function useWizardCall({ onEvent } = {}) {
       clientRef.current = client;
 
       // 4. Listen for user events (wizard SWAIG events)
+      // user_event handler — split wizard_said into onTranscript, rest into onEvent
       client.on("user_event", (params) => {
         const eventData = params?.event || params;
         appendDebug("client:user_event", eventData);
+        if (eventData?.type === "wizard_said") {
+          if (onTranscriptRef.current) {
+            onTranscriptRef.current({
+              role: "wizard",
+              text: eventData.text || "",
+              isPartial: false,
+              t: Date.now(),
+            });
+          }
+          return;
+        }
         onEventRef.current?.(eventData); // I2: always uses latest callback
       });
+
+      // Subscribe to SDK partial-recognition events for user-side transcript.
+      // The exact event name varies by @signalwire/js version, so subscribe
+      // defensively to both candidate names.
+      const handlePartial = (params) => {
+        if (!onTranscriptRef.current) return;
+        const partial = params?.partial_recognition || params?.detail?.partial_recognition;
+        if (!partial?.text) return;
+        onTranscriptRef.current({
+          role: "user",
+          text: partial.text,
+          isPartial: !partial.final,
+          t: Date.now(),
+        });
+      };
+      try { client.on("prompt", handlePartial); } catch {}
+      try { client.on("call.updated", handlePartial); } catch {}
 
       setConnectionState("ringing");
 
