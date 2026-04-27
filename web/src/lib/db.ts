@@ -9,18 +9,24 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
-const DB_PATH = join(process.cwd(), 'data', 'sally_sales.db');
-
 let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!_db) {
+    const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'sally_sales.db');
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
     initTables(_db);
   }
   return _db;
+}
+
+export function closeDb(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
 }
 
 function initTables(db: Database.Database) {
@@ -127,11 +133,25 @@ function initTables(db: Database.Database) {
     { name: 'sendgrid_api_key', type: "TEXT DEFAULT ''" },
     { name: 'email_from_address', type: "TEXT DEFAULT ''" },
     { name: 'email_from_name', type: "TEXT DEFAULT ''" },
+    { name: 'kind', type: "TEXT NOT NULL DEFAULT 'employee'" },
+    { name: 'is_hidden', type: 'INTEGER NOT NULL DEFAULT 0' },
+  ];
+
+  const callLogColumnsToAdd = [
+    { name: 'built_agent_id', type: 'TEXT' },
   ];
 
   for (const col of employeeColumnsToAdd) {
     try {
       db.exec(`ALTER TABLE employees ADD COLUMN ${col.name} ${col.type}`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) throw e;
+    }
+  }
+
+  for (const col of callLogColumnsToAdd) {
+    try {
+      db.exec(`ALTER TABLE call_logs ADD COLUMN ${col.name} ${col.type}`);
     } catch (e: any) {
       if (!e.message.includes('duplicate column')) throw e;
     }
