@@ -580,6 +580,7 @@ export function callLogRowToJson(row: any) {
     avgLatencyMs: row.avg_latency_ms,
     totalInputTokens: row.total_input_tokens,
     totalOutputTokens: row.total_output_tokens,
+    builtAgentId: row.built_agent_id || null,
     _raw: safeJsonParse(row.raw_payload, null),
   };
 }

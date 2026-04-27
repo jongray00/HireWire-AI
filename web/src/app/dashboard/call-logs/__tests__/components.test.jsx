@@ -356,6 +356,57 @@ describe("RecordingWaveform", () => {
   });
 });
 
+// Task 17: CallLogsList — wizard pill + built-agent link + filter chip
+import CallLogsList from "../components/CallLogsList";
+
+describe("Call Logs — wizard rows", () => {
+  const baseLog = (overrides = {}) => ({
+    id: "c1",
+    timestamp: new Date().toISOString(),
+    duration_sec: 30,
+    summary: "test",
+    employee_name: "Sarah",
+    employee_role: "Support",
+    employeeId: "emp_x",
+    builtAgentId: null,
+    actions: [],
+    ...overrides,
+  });
+
+  it("renders 🧙 Wizard Session pill for employeeId='wizard-{projectId}'", () => {
+    const logs = [baseLog({ employeeId: "wizard-p1", employee_name: "Setup Wizard" })];
+    render(<CallLogsList logs={logs} filter="all" />);
+    expect(screen.getByText(/Wizard Session/i)).toBeDefined();
+  });
+
+  it("renders 'Built: {name}' link when builtAgentId is set", () => {
+    const logs = [baseLog({ employeeId: "wizard-p1", builtAgentId: "emp_x" })];
+    const employees = [{ id: "emp_x", name: "Sarah" }];
+    render(<CallLogsList logs={logs} employees={employees} filter="all" />);
+    const link = screen.getByRole("link", { name: /Built: Sarah/i });
+    expect(link.getAttribute("href")).toContain("emp_x");
+  });
+
+  it("filter='wizard' shows only wizard rows", () => {
+    const logs = [
+      baseLog({ id: "c1", employeeId: "emp_x" }),
+      baseLog({ id: "c2", employeeId: "wizard-p1" }),
+    ];
+    render(<CallLogsList logs={logs} filter="wizard" />);
+    expect(screen.queryByText("c1")).toBeNull();
+    expect(screen.queryByText("c2")).toBeDefined();
+  });
+
+  it("filter='employees' hides wizard rows", () => {
+    const logs = [
+      baseLog({ id: "c1", employeeId: "emp_x" }),
+      baseLog({ id: "c2", employeeId: "wizard-p1" }),
+    ];
+    render(<CallLogsList logs={logs} filter="employees" />);
+    expect(screen.queryByText("Wizard Session")).toBeNull();
+  });
+});
+
 // Phase 0+1: CallDetail integration
 import CallDetail from "../components/CallDetail";
 
