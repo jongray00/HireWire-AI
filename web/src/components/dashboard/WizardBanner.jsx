@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Wand2, Phone, PhoneOff } from "lucide-react";
 import { useWizardCall } from "@/app/hooks/useWizardCall";
 import { parseWizardEvent } from "@/lib/wizardEvents";
@@ -17,18 +17,33 @@ import { parseWizardEvent } from "@/lib/wizardEvents";
  *   - "wizard-event"        — SWAIG events (agent_preview, agent_config_question, agent_created, agent_ready, wizard_checkpoint)
  *   - "wizard-transcript"   — transcript lines (wizard_said + SDK partials)
  *   - "wizard-call-state"   — call state changes (calling, connected, connectionState)
- * Canvas and employees page consume these.
+ *
+ * Banner also captures the full session lifecycle (events + transcript + debug
+ * log + start/end times) and POSTs it to /api/signalwire/wizard-session-log
+ * when the call ends — that endpoint persists a row to call_logs so every
+ * wizard call shows up in the Call Logs page regardless of whether SignalWire
+ * fires its own post-prompt webhook.
  *
  * Mount in dashboard/layout.jsx so it persists across all pages.
  */
 export default function WizardBanner({ onAgentCreated }) {
+  // Per-call session record. Reset each time a new call starts.
+  const sessionRef = useRef(null);
+  const wasActiveRef = useRef(false);
+
   const handleWizardEvent = useCallback((eventData) => {
     const parsed = parseWizardEvent(eventData);
     if (!parsed) return;
+    if (sessionRef.current) {
+      sessionRef.current.events.push({ t: Date.now(), data: parsed.data });
+    }
     window.dispatchEvent(new CustomEvent("wizard-event", { detail: parsed.data }));
   }, []);
 
   const handleTranscript = useCallback((line) => {
+    if (sessionRef.current) {
+      sessionRef.current.transcript.push(line);
+    }
     window.dispatchEvent(new CustomEvent("wizard-transcript", { detail: line }));
   }, []);
 
@@ -41,6 +56,46 @@ export default function WizardBanner({ onAgentCreated }) {
       detail: { calling, connected, connectionState, error },
     }));
   }, [calling, connected, connectionState, error]);
+
+  // Session lifecycle: start a fresh record on call activation, persist on
+  // call end (whether the call completed cleanly or was aborted).
+  useEffect(() => {
+    const isActive = calling || connected;
+    if (isActive && !wasActiveRef.current) {
+      sessionRef.current = {
+        sessionId: `wizard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        startedAt: new Date().toISOString(),
+        events: [],
+        transcript: [],
+      };
+    }
+    if (!isActive && wasActiveRef.current && sessionRef.current) {
+      const session = sessionRef.current;
+      sessionRef.current = null;
+      const created = [...session.events].reverse().find((e) => e.data?.type === "agent_created");
+      const payload = {
+        sessionId: session.sessionId,
+        startedAt: session.startedAt,
+        endedAt: new Date().toISOString(),
+        events: session.events,
+        transcript: session.transcript,
+        debugLog: debugLog.slice(),
+        finalConnectionState: connectionState,
+        error: error || null,
+        builtAgentId: created?.data?.employee?.id || null,
+        builtAgentName: created?.data?.employee?.name || null,
+      };
+      // Best-effort fire-and-forget. Failures are not user-visible — the user
+      // can still see the call in the agent log if needed.
+      fetch("/api/signalwire/wizard-session-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch((e) => console.warn("[WizardBanner] session-log POST failed:", e));
+    }
+    wasActiveRef.current = isActive;
+  }, [calling, connected, connectionState, error, debugLog]);
+
   const [showDebug, setShowDebug] = useState(false);
   const micStatus = [...debugLog].reverse().find((d) => d.kind === "mic:permission" || d.kind === "mic:permission-changed")?.detail || "unknown";
 

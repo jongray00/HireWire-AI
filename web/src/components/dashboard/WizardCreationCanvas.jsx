@@ -108,7 +108,10 @@ export default function WizardCreationCanvas() {
     }
   }, [isCallActive, createdAgent, readyAgent]);
 
-  const shouldShow = hasReceivedFirstEvent || createdAgent;
+  // Show canvas the moment the call is active so users see it even before
+  // the wizard fires its first SWAIG event. Also remains visible after the
+  // call ends if there's a created/ready agent to celebrate.
+  const shouldShow = isCallActive || hasReceivedFirstEvent || createdAgent;
   if (!shouldShow) return null;
 
   const handleDismiss = () => {
