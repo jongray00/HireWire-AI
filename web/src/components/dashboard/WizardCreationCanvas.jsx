@@ -2,15 +2,21 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Wand2, X } from "lucide-react";
-import { useWizardCall } from "@/app/hooks/useWizardCall";
 import { WIZARD_EVENTS, parseWizardEvent } from "@/lib/wizardEvents";
 
 /**
  * WizardCreationCanvas — focal overlay for the agent-being-built experience.
  *
+ * Listens to window events broadcast by WizardBanner (the banner owns the
+ * SignalWire client; the canvas is a pure consumer):
+ *   - "wizard-event"      → SWAIG events (preview, question, checkpoint, created, ready)
+ *   - "wizard-transcript" → transcript lines (wizard_said + SDK partials)
+ *   - "wizard-call-state" → {calling, connected, connectionState, error}
+ *
  * Hidden until the first wizard event during an active call. Opens with a
  * two-column layout: live transcript (left), structured config + checkpoint
- * stepper (right). Backdrop click does not dismiss.
+ * stepper (right). Backdrop click does not dismiss; user must end the call
+ * and click [✕] (or the call ends) to close.
  */
 export default function WizardCreationCanvas() {
   const [hasReceivedFirstEvent, setHasReceivedFirstEvent] = useState(false);
@@ -22,6 +28,9 @@ export default function WizardCreationCanvas() {
   });
   const [createdAgent, setCreatedAgent] = useState(null);
   const [readyAgent, setReadyAgent] = useState(null);
+  const [callState, setCallState] = useState({
+    calling: false, connected: false, connectionState: "idle", error: null,
+  });
 
   const handleEvent = useCallback((eventData) => {
     const parsed = parseWizardEvent(eventData);
@@ -58,25 +67,39 @@ export default function WizardCreationCanvas() {
 
   const handleTranscript = useCallback((line) => {
     setTranscript((prev) => {
-      // Replace partial with new partial; append final lines.
-      if (line.isPartial && prev.length > 0 && prev[prev.length - 1].isPartial && prev[prev.length - 1].role === line.role) {
+      // Replace partial with new partial from same role; append final lines.
+      if (
+        line.isPartial &&
+        prev.length > 0 &&
+        prev[prev.length - 1].isPartial &&
+        prev[prev.length - 1].role === line.role
+      ) {
         return [...prev.slice(0, -1), line];
       }
       return [...prev, line];
     });
   }, []);
 
-  const { calling, connected, connectionState, endCall } = useWizardCall({
-    onEvent: handleEvent,
-    onTranscript: handleTranscript,
-  });
+  // Subscribe to banner-broadcast window events.
+  useEffect(() => {
+    const onEvt = (e) => handleEvent(e.detail);
+    const onTr = (e) => handleTranscript(e.detail);
+    const onState = (e) => setCallState(e.detail);
+    window.addEventListener("wizard-event", onEvt);
+    window.addEventListener("wizard-transcript", onTr);
+    window.addEventListener("wizard-call-state", onState);
+    return () => {
+      window.removeEventListener("wizard-event", onEvt);
+      window.removeEventListener("wizard-transcript", onTr);
+      window.removeEventListener("wizard-call-state", onState);
+    };
+  }, [handleEvent, handleTranscript]);
 
-  const isCallActive = calling || connected;
+  const isCallActive = callState.calling || callState.connected;
 
-  // Hide canvas when call ends and there's nothing to show
+  // Reset when call ends and there's nothing to show.
   useEffect(() => {
     if (!isCallActive && !createdAgent && !readyAgent) {
-      // Reset for next call
       setHasReceivedFirstEvent(false);
       setTranscript([]);
       setConfig({});
@@ -115,7 +138,7 @@ export default function WizardCreationCanvas() {
             <CheckpointDot label="Review" state={checkpoints.review ? "passed" : "pending"} testid="checkpoint-review" />
           </div>
           <div className="flex items-center gap-3">
-            {connectionState === "connected" && (
+            {callState.connectionState === "connected" && (
               <span className="text-xs text-green-400">● Live</span>
             )}
             {!isCallActive && (
@@ -152,7 +175,6 @@ export default function WizardCreationCanvas() {
           </div>
         )}
 
-        {/* Body — populated in Tasks 11-13 */}
         <div className="flex-1 grid grid-cols-2 divide-x divide-purple-500/20 overflow-hidden">
           <div
             data-testid="wizard-transcript"

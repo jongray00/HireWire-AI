@@ -1,36 +1,28 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-
-let capturedOnTranscript;
-let capturedOnEvent;
-const mockEndCall = vi.fn();
-
-vi.mock("@/app/hooks/useWizardCall", () => ({
-  useWizardCall: ({ onEvent, onTranscript } = {}) => {
-    capturedOnEvent = onEvent;
-    capturedOnTranscript = onTranscript;
-    return {
-      startCall: vi.fn(),
-      endCall: mockEndCall,
-      calling: window.__testWizardCalling || false,
-      connected: window.__testWizardConnected || false,
-      connectionState: window.__testWizardConnectionState || "idle",
-      error: null,
-      videoRef: { current: null },
-    };
-  },
-}));
 
 import WizardCreationCanvas from "../WizardCreationCanvas";
 
+// Helpers — the canvas listens to window events broadcast by the banner.
+function dispatchEvent(detail) {
+  window.dispatchEvent(new CustomEvent("wizard-event", { detail }));
+}
+function dispatchTranscript(detail) {
+  window.dispatchEvent(new CustomEvent("wizard-transcript", { detail }));
+}
+function dispatchCallState(detail) {
+  window.dispatchEvent(new CustomEvent("wizard-call-state", { detail }));
+}
+function setActiveCall() {
+  dispatchCallState({ calling: true, connected: true, connectionState: "connected", error: null });
+}
+function setEndedCall() {
+  dispatchCallState({ calling: false, connected: false, connectionState: "idle", error: null });
+}
+
 describe("WizardCreationCanvas — visibility", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    window.__testWizardCalling = false;
-    window.__testWizardConnected = false;
-    window.__testWizardConnectionState = "idle";
-    capturedOnEvent = null;
-    capturedOnTranscript = null;
+    setEndedCall();
   });
 
   it("is hidden by default when no call is active", () => {
@@ -39,11 +31,10 @@ describe("WizardCreationCanvas — visibility", () => {
   });
 
   it("opens on first agent_config_question event during active call", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
     const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { setActiveCall(); });
     act(() => {
-      capturedOnEvent({ type: "agent_config_question", question: "What kind?", options: ["A"], field: "role" });
+      dispatchEvent({ type: "agent_config_question", question: "What kind?", options: ["A"], field: "role" });
     });
     rerender(<WizardCreationCanvas />);
     expect(screen.getByTestId("wizard-canvas")).toBeDefined();
@@ -51,42 +42,35 @@ describe("WizardCreationCanvas — visibility", () => {
   });
 
   it("opens on first agent_preview event during active call", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
     const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { setActiveCall(); });
     act(() => {
-      capturedOnEvent({ type: "agent_preview", name: "Sarah", role: "Support" });
+      dispatchEvent({ type: "agent_preview", name: "Sarah", role: "Support" });
     });
     rerender(<WizardCreationCanvas />);
     expect(screen.getByTestId("wizard-canvas")).toBeDefined();
   });
 
   it("stays hidden if call ends without any wizard event", () => {
-    window.__testWizardCalling = true;
     const { rerender, container } = render(<WizardCreationCanvas />);
-    window.__testWizardCalling = false;
-    window.__testWizardConnected = false;
+    act(() => { setActiveCall(); });
+    act(() => { setEndedCall(); });
     rerender(<WizardCreationCanvas />);
     expect(container.querySelector('[data-testid="wizard-canvas"]')).toBeNull();
   });
 });
 
 describe("WizardCreationCanvas — transcript", () => {
-  beforeEach(() => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
-  });
-
   it("renders wizard and user transcript lines in chronological order", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
-    act(() => { capturedOnTranscript({ role: "wizard", text: "Hi there", isPartial: false, t: 1 }); });
-    act(() => { capturedOnTranscript({ role: "user", text: "hello", isPartial: false, t: 2 }); });
+    act(() => { setActiveCall(); });
+    act(() => { dispatchEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
+    act(() => { dispatchTranscript({ role: "wizard", text: "Hi there", isPartial: false, t: 1 }); });
+    act(() => { dispatchTranscript({ role: "user", text: "hello", isPartial: false, t: 2 }); });
     rerender(<WizardCreationCanvas />);
     const transcriptCol = screen.getByTestId("wizard-transcript");
     expect(transcriptCol.textContent).toContain("Hi there");
     expect(transcriptCol.textContent).toContain("hello");
-    // Wizard line comes before user line
     expect(transcriptCol.textContent.indexOf("Hi there")).toBeLessThan(
       transcriptCol.textContent.indexOf("hello")
     );
@@ -94,9 +78,10 @@ describe("WizardCreationCanvas — transcript", () => {
 
   it("replaces partial user line with the next partial from same role", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
-    act(() => { capturedOnTranscript({ role: "user", text: "hel", isPartial: true, t: 1 }); });
-    act(() => { capturedOnTranscript({ role: "user", text: "hello world", isPartial: true, t: 2 }); });
+    act(() => { setActiveCall(); });
+    act(() => { dispatchEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
+    act(() => { dispatchTranscript({ role: "user", text: "hel", isPartial: true, t: 1 }); });
+    act(() => { dispatchTranscript({ role: "user", text: "hello world", isPartial: true, t: 2 }); });
     rerender(<WizardCreationCanvas />);
     const transcriptCol = screen.getByTestId("wizard-transcript");
     expect(transcriptCol.textContent).toContain("hello world");
@@ -105,15 +90,11 @@ describe("WizardCreationCanvas — transcript", () => {
 });
 
 describe("WizardCreationCanvas — config + stepper", () => {
-  beforeEach(() => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
-  });
 
   it("renders config fields as agent_preview events arrive", () => {
     const { rerender } = render(<WizardCreationCanvas />);
     act(() => {
-      capturedOnEvent({
+      dispatchEvent({
         type: "agent_preview",
         name: "Sarah",
         role: "Billing Support",
@@ -129,8 +110,8 @@ describe("WizardCreationCanvas — config + stepper", () => {
 
   it("merges update_agent_preview into existing config", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah", role: "Support" }); });
-    act(() => { capturedOnEvent({ type: "agent_preview", voice: "openai.nova", greeting: "Hi!" }); });
+    act(() => { dispatchEvent({ type: "agent_preview", name: "Sarah", role: "Support" }); });
+    act(() => { dispatchEvent({ type: "agent_preview", voice: "openai.nova", greeting: "Hi!" }); });
     rerender(<WizardCreationCanvas />);
     const config = screen.getByTestId("wizard-config");
     expect(config.textContent).toContain("Sarah");
@@ -140,8 +121,8 @@ describe("WizardCreationCanvas — config + stepper", () => {
 
   it("checkpoint stepper advances on wizard_checkpoint events", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
-    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "identity" }); });
+    act(() => { dispatchEvent({ type: "agent_preview", name: "Sarah" }); });
+    act(() => { dispatchEvent({ type: "wizard_checkpoint", stage: "identity" }); });
     rerender(<WizardCreationCanvas />);
     expect(screen.getByTestId("checkpoint-identity")).toHaveAttribute("data-state", "passed");
     expect(screen.getByTestId("checkpoint-voice")).toHaveAttribute("data-state", "pending");
@@ -149,9 +130,9 @@ describe("WizardCreationCanvas — config + stepper", () => {
 
   it("out-of-order checkpoints don't regress earlier ones", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
-    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "identity" }); });
-    act(() => { capturedOnEvent({ type: "wizard_checkpoint", stage: "voice" }); });
+    act(() => { dispatchEvent({ type: "agent_preview", name: "Sarah" }); });
+    act(() => { dispatchEvent({ type: "wizard_checkpoint", stage: "identity" }); });
+    act(() => { dispatchEvent({ type: "wizard_checkpoint", stage: "voice" }); });
     rerender(<WizardCreationCanvas />);
     expect(screen.getByTestId("checkpoint-identity")).toHaveAttribute("data-state", "passed");
     expect(screen.getByTestId("checkpoint-voice")).toHaveAttribute("data-state", "passed");
@@ -159,12 +140,11 @@ describe("WizardCreationCanvas — config + stepper", () => {
 });
 
 describe("WizardCreationCanvas — created/ready states", () => {
+
   it("shows celebratory state on agent_created", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
     const { rerender } = render(<WizardCreationCanvas />);
     act(() => {
-      capturedOnEvent({
+      dispatchEvent({
         type: "agent_created",
         employee: { id: "e1", name: "Sarah", role: "Support" }
       });
@@ -174,20 +154,17 @@ describe("WizardCreationCanvas — created/ready states", () => {
   });
 
   it("shows 'Call your new agent' CTA after agent_ready", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_created", employee: { id: "e1", name: "Sarah" } }); });
-    act(() => { capturedOnEvent({ type: "agent_ready", employee_id: "e1", swml_route: "/swml/e1" }); });
+    act(() => { dispatchEvent({ type: "agent_created", employee: { id: "e1", name: "Sarah" } }); });
+    act(() => { dispatchEvent({ type: "agent_ready", employee_id: "e1", swml_route: "/swml/e1" }); });
     rerender(<WizardCreationCanvas />);
     expect(screen.getByRole("button", { name: /call your new agent/i })).toBeDefined();
   });
 
-  it("close button is disabled while call is active", () => {
-    window.__testWizardCalling = true;
-    window.__testWizardConnected = true;
+  it("close button is hidden while call is active", () => {
     const { rerender } = render(<WizardCreationCanvas />);
-    act(() => { capturedOnEvent({ type: "agent_preview", name: "Sarah" }); });
+    act(() => { setActiveCall(); });
+    act(() => { dispatchEvent({ type: "agent_preview", name: "Sarah" }); });
     rerender(<WizardCreationCanvas />);
     expect(screen.queryByLabelText("Close wizard canvas")).toBeNull();
   });

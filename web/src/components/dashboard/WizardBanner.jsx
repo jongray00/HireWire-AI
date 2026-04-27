@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Wand2, Phone, PhoneOff } from "lucide-react";
 import { useWizardCall } from "@/app/hooks/useWizardCall";
 import { parseWizardEvent } from "@/lib/wizardEvents";
@@ -13,8 +13,11 @@ import { parseWizardEvent } from "@/lib/wizardEvents";
  * Error: retry bar.
  *
  * Preview/question/created cards are rendered by WizardCreationCanvas, not here.
- * This component broadcasts wizard events via window.dispatchEvent("wizard-event")
- * so canvas and employees page can consume them.
+ * Banner owns the SignalWire client and broadcasts everything via window events:
+ *   - "wizard-event"        — SWAIG events (agent_preview, agent_config_question, agent_created, agent_ready, wizard_checkpoint)
+ *   - "wizard-transcript"   — transcript lines (wizard_said + SDK partials)
+ *   - "wizard-call-state"   — call state changes (calling, connected, connectionState)
+ * Canvas and employees page consume these.
  *
  * Mount in dashboard/layout.jsx so it persists across all pages.
  */
@@ -22,12 +25,22 @@ export default function WizardBanner({ onAgentCreated }) {
   const handleWizardEvent = useCallback((eventData) => {
     const parsed = parseWizardEvent(eventData);
     if (!parsed) return;
-    // Broadcast to other listeners (canvas, employees page).
     window.dispatchEvent(new CustomEvent("wizard-event", { detail: parsed.data }));
   }, []);
 
+  const handleTranscript = useCallback((line) => {
+    window.dispatchEvent(new CustomEvent("wizard-transcript", { detail: line }));
+  }, []);
+
   const { startCall, endCall, calling, connected, connectionState, error, videoRef, debugLog = [] } =
-    useWizardCall({ onEvent: handleWizardEvent });
+    useWizardCall({ onEvent: handleWizardEvent, onTranscript: handleTranscript });
+
+  // Broadcast call-state changes so the canvas can derive its visibility.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("wizard-call-state", {
+      detail: { calling, connected, connectionState, error },
+    }));
+  }, [calling, connected, connectionState, error]);
   const [showDebug, setShowDebug] = useState(false);
   const micStatus = [...debugLog].reverse().find((d) => d.kind === "mic:permission" || d.kind === "mic:permission-changed")?.detail || "unknown";
 
