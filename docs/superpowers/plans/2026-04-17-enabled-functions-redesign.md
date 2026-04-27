@@ -1,5 +1,7 @@
 # Enabled Functions Redesign — Implementation Plan
 
+**Status:** ✅ Implementation complete — `PhoneNumberPicker.jsx`, `KnowledgeBaseTab.jsx`, `CallLogDetail.jsx`, and the `call_actions` table all shipped. Step checkboxes were not back-filled; treat them as historical.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix all broken SWAIG functions, add knowledge base (DataSphere), email (SendGrid), and customer info capture, persist all actions to DB, and display them in call log detail view.

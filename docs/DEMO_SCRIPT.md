@@ -18,7 +18,7 @@
    ```bash
    cd web && npm run dev
    ```
-   Open `http://localhost:5001`
+   Open `http://localhost:5000`
 
 ## Demo Flow
 
