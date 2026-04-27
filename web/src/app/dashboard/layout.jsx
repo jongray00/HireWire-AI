@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useThemeStore } from "@/app/stores/theme";
 import WizardBanner from "@/components/dashboard/WizardBanner";
+import WizardCreationCanvas from "@/components/dashboard/WizardCreationCanvas";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -262,6 +263,7 @@ export default function DashboardLayout({ children }) {
 
         {/* Wizard Banner — persists across all pages */}
         <WizardBanner />
+        <WizardCreationCanvas />
 
         {/* Page Content */}
         <main className="p-4 lg:p-6">
