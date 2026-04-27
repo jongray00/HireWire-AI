@@ -831,6 +831,7 @@ class WizardAgent(AgentBase):
             '- "sentiment": one of "positive", "neutral", or "negative"\n'
             '- "topics": array of topic keyword strings\n'
             '- "follow_up": any action items or follow-up needed (null if none)\n'
+            '- "agent_built_id": the employee id returned by create_agent if you created an agent in this session, otherwise null\n'
             "Respond ONLY with the JSON object, no extra text."
         )
 
