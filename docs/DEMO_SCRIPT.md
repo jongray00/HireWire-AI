@@ -46,23 +46,17 @@
 **Say to the wizard:**
 > "Build me a customer support agent for a software company. It should handle bug reports and billing questions."
 
-- Watch the banner update with questions and options
-- The wizard will show a preview card
+- Watch the **Wizard Creation Canvas** open over the dashboard — the wizard's voice drives a 4-checkpoint progression (Identity → Voice → Capabilities → Review) at the top of the panel
+- The left column streams the live transcript; the right column populates structured fields and a prompt preview as the wizard collects info
 - Say: "Add email follow-ups and make the voice more professional"
-- Preview updates live
+- The canvas updates immediately — voice changes, functions list grows
 - Say: "Looks good, create it"
-- Watch the **Employees** page — the new agent appears with a highlight animation
+- The canvas flips to a celebratory "✨ {name} is ready" state with a "Call your new agent" CTA
 
-### 5. Call the New Agent (1 minute)
-- Navigate to **Employees**
-- Click the call button on the newly created agent
-- Have a brief conversation to demonstrate it works
-- End the call
-
-### 6. Show Call Analytics (30 seconds)
-- Navigate to **Call Logs**
-- Click **Refresh** — the new call appears with AI summary
-- Expand it to show transcript, sentiment, latency metrics
+### 5. Inspect the Wizard Session (30 seconds)
+- End the wizard call
+- Navigate to **Call Logs** — the wizard call appears with a 🧙 **Wizard Session** pill and a "→ Built: {name}" link
+- Open it — the transcript view shows the full conversation, useful for debugging the wizard's progression
 
 ## Reset Between Demos
 
