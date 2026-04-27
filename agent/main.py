@@ -971,6 +971,34 @@ class WizardAgent(AgentBase):
         return result
 
     @AgentBase.tool(
+        name="mark_checkpoint",
+        description=(
+            "Mark a build-progress checkpoint reached. Call exactly once per stage, "
+            "in order: identity, voice, capabilities, review."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "enum": ["identity", "voice", "capabilities", "review"],
+                    "description": "Which checkpoint to mark"
+                }
+            },
+            "required": ["stage"]
+        }
+    )
+    def mark_checkpoint(self, args, raw_data):
+        stage = args.get("stage", "")
+        logger.info(f"[wizard] mark_checkpoint: {stage}")
+        result = SwaigFunctionResult("")  # silent — no spoken response
+        result.swml_user_event({
+            "type": "wizard_checkpoint",
+            "stage": stage
+        })
+        return result
+
+    @AgentBase.tool(
         name="create_agent",
         description="Create the designed agent — builds the real agent and mounts it to a live endpoint",
         parameters={
