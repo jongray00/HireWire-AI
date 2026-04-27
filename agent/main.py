@@ -10,6 +10,10 @@ import os
 import uuid
 import json
 import logging
+import sqlite3
+import urllib.request
+import urllib.error
+from pathlib import Path as _Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -26,6 +30,12 @@ load_dotenv()
 SWML_USER = os.getenv('SWML_BASIC_AUTH_USER', 'signalwire')
 SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD', 'signalwire')
 APP_DOMAIN = os.getenv('APP_DOMAIN', '')
+# Frontend URL the wizard uses to invoke the create-virtual-employee orchestration.
+# Vite usually runs on 5000, but macOS Control Center / AirPlay grabs 5000 so it
+# falls back to 5001. Defaults match local dev; override in production.
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5001')
+# SQLite path for credentials lookup — same DB the frontend uses.
+WEB_DB_PATH = os.getenv('DATABASE_PATH', str(_Path(__file__).parent.parent / 'web' / 'data' / 'sally_sales.db'))
 
 
 def _detect_ngrok_url() -> Optional[str]:
@@ -709,6 +719,58 @@ class VirtualEmployeeAgent(AgentBase):
         return super().on_swml_request(request_data, callback_path, request)
 
 
+def _wizard_lookup_user_credentials(project_id: str) -> Optional[Dict[str, str]]:
+    """Look up the user's SignalWire credentials from the SQLite DB by project_id.
+
+    Returns {spaceUrl, projectId, apiToken} or None if not found.
+    The DB is populated by the frontend's upsertUser when the user logs in.
+    """
+    if not project_id:
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{WEB_DB_PATH}?mode=ro", uri=True, timeout=2.0)
+        try:
+            row = conn.execute(
+                "SELECT space_url, api_token FROM users WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        if not row:
+            return None
+        return {"spaceUrl": row[0], "projectId": project_id, "apiToken": row[1]}
+    except Exception as e:
+        logger.warning(f"[wizard] credential lookup failed: {e}")
+        return None
+
+
+def _wizard_create_employee_via_frontend(employee_data: Dict[str, Any], credentials: Dict[str, str]) -> Dict[str, Any]:
+    """POST to the frontend's create-virtual-employee orchestration.
+
+    Returns the parsed JSON response (with .employee + callFabricAddress)
+    or raises an exception with a useful message.
+    """
+    url = f"{FRONTEND_URL}/api/signalwire/create-virtual-employee"
+    body = json.dumps({"employeeData": employee_data, "credentials": credentials}).encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30.0) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode()
+        except Exception:
+            err_body = ""
+        raise RuntimeError(f"frontend returned {e.code}: {err_body or e.reason}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"could not reach frontend at {FRONTEND_URL}: {e.reason}") from e
+
+
 class WizardAgent(AgentBase):
     """Voice-callable AI wizard that helps users build other AI agents through conversation.
 
@@ -760,14 +822,16 @@ class WizardAgent(AgentBase):
         self.prompt_add_section(
             "Discovery — read the user's intent first",
             bullets=[
+                "HARD RULE: Never call preview_agent until you have explicitly asked the user \"What should we call this agent?\" (or equivalent) and received their answer. NEVER invent a name from the user's company, role description, or your own preference. The agent's name comes from the user, period.",
+                "HARD RULE: Always ask for the agent's role/purpose explicitly too. Don't infer it — confirm with the user.",
                 "Open with a 1-line greeting and a single open question: \"What kind of agent would you like to build today?\"",
                 "Listen to the answer and silently classify the user as one of: Specific (concrete use case), Vague (\"just build me something\"), Template-seeking (names a known type), Iterating (references an existing agent), or Curious/browsing.",
-                "Specific: skip ahead — name, role, and prompt are mostly inferable from what they said.",
-                "Vague: offer 3–4 starting points via ask_config_question (Sales / Support / Scheduling / Knowledge concierge).",
-                "Template-seeking: confirm and proceed with that template's defaults.",
-                "Iterating: acknowledge, copy what they referenced, and only collect the diffs.",
+                "Specific: still ask explicitly for the agent's name and confirm the role they described.",
+                "Vague: offer 3–4 starting points via ask_config_question (Sales / Support / Scheduling / Knowledge concierge), then ask for the name once they pick.",
+                "Template-seeking: confirm and proceed with that template's defaults — but still ask for the name.",
+                "Iterating: acknowledge, copy what they referenced, ask for the new name, and only collect the diffs.",
                 "Curious/browsing: briefly enumerate the four archetypes above, then re-ask.",
-                "Once you have a working name + role + 1-sentence purpose, call mark_checkpoint(\"identity\")."
+                "Only after the user has explicitly told you the agent's name AND role, call preview_agent with those values, then call mark_checkpoint(\"identity\")."
             ]
         )
 
@@ -775,11 +839,14 @@ class WizardAgent(AgentBase):
         self.prompt_add_section(
             "Building — fill in the rest",
             bullets=[
-                "Always emit preview_agent immediately after identity is captured, even with partial info — the user wants to see progress in the canvas.",
+                "HARD RULE: mark_checkpoint MUST be called in exactly this order: identity → voice → capabilities → review. Never skip a stage. Each stage must be called at most once. If you're tempted to call mark_checkpoint(\"review\") and you haven't already called identity/voice/capabilities, STOP and back up — you missed a step.",
+                "HARD RULE: Before mark_checkpoint(\"voice\") — the user must have confirmed the voice choice AND the greeting wording.",
+                "HARD RULE: Before mark_checkpoint(\"capabilities\") — the user must have explicitly chosen at least one capability AND configured any per-capability parameters (transfer phone for transfer_to_human, hours for check_business_hours, KB docs for search_knowledge, etc.).",
+                "Always emit preview_agent immediately after the user has given a name + role — but never before. The user wants to see progress in the canvas.",
                 "Use voice-only for free-form fields: name, greeting wording, custom prompt phrasing, what to say when transferring.",
                 "Use ask_config_question for fixed sets: voice (openai.shimmer / openai.nova / openai.alloy), pace (friendly / professional / direct), capabilities (multi-select).",
-                "After voice + greeting are confirmed, call mark_checkpoint(\"voice\").",
-                "For capabilities, present them as multi-select via ask_config_question (use list_available_functions for the current set). After the user picks, call update_agent_preview with the function list, then walk through any per-capability config (transfer phone, hours, KB, etc.). When all selected capabilities are configured, call mark_checkpoint(\"capabilities\").",
+                "After voice + greeting are confirmed by the user, call mark_checkpoint(\"voice\").",
+                "For capabilities, present them as multi-select via ask_config_question (use list_available_functions for the current set). After the user picks, call update_agent_preview with the function list, then walk through any per-capability config. When all selected capabilities are configured, call mark_checkpoint(\"capabilities\").",
                 "Use update_agent_preview aggressively — every field change fires it. The canvas is watching.",
                 "Keep spoken responses short (at most 2 sentences) while the canvas is doing the visual work."
             ]
@@ -789,8 +856,9 @@ class WizardAgent(AgentBase):
         self.prompt_add_section(
             "Confirmation",
             bullets=[
-                "Before creating, recap in one breath: \"Okay — {name}, a {role} with {voice}'s voice, who can {top 2-3 capabilities}. Sound right?\"",
-                "Wait for explicit yes. If the user hesitates or asks for changes, treat it as another update_agent_preview cycle — don't push.",
+                "HARD RULE: Before mark_checkpoint(\"review\") — you MUST have already called mark_checkpoint(\"identity\"), mark_checkpoint(\"voice\"), AND mark_checkpoint(\"capabilities\") in that order. If any are missing, return to that section instead of marking review.",
+                "Recap in one breath: \"Okay — {name}, a {role} with {voice}'s voice, who can {top 2-3 capabilities}. Sound right?\" Use the user's actual name and capability choices, not placeholders.",
+                "Wait for explicit yes from the user. If they hesitate or ask for changes, treat it as another update_agent_preview cycle — don't push.",
                 "On explicit confirmation, call mark_checkpoint(\"review\"). Only then proceed to creation.",
                 "If the user says \"scrap it\" or \"start over\", clear the preview by calling update_agent_preview with empty fields and return to Discovery."
             ]
@@ -800,8 +868,10 @@ class WizardAgent(AgentBase):
         self.prompt_add_section(
             "Creation",
             bullets=[
-                "Say something brief and confident — \"Building {name} now…\" — then call create_agent with the full config. Silence during the call is okay (the canvas shows progress).",
-                "When create_agent returns successfully, call finalize_agent immediately.",
+                "HARD RULE: Before create_agent — you MUST have already called mark_checkpoint(\"review\"). If you haven't, recap and confirm with the user first.",
+                "Say something brief and confident — \"Building {name} now…\" — then call create_agent with the full config (use the user's actual name, not a placeholder).",
+                "Silence during the create_agent call is okay (the canvas shows progress).",
+                "When create_agent returns successfully, call finalize_agent with the employee_id from the create_agent response immediately.",
                 "After finalize, say: \"{name} is live. You can call them right from the canvas, or end this call and I'll get out of your way.\"",
                 "If create_agent fails, surface the error briefly (\"Hmm, the build didn't go through — {short reason}. Want to try again?\") and offer to retry."
             ]
@@ -1112,10 +1182,22 @@ class WizardAgent(AgentBase):
         temperature = args.get("temperature", 0.7)
         functions = args.get("functions", ["transfer_to_human", "end_call"])
 
-        employee_id = str(uuid.uuid4())[:8]
+        # Orchestrate via the frontend route so the agent gets a real
+        # SignalWire SWML resource, a callFabricAddress, and a SQLite row —
+        # the same path used by the dashboard's "Create Employee" button.
+        project_id = (raw_data or {}).get("project_id") if isinstance(raw_data, dict) else None
+        creds = _wizard_lookup_user_credentials(project_id)
+        if not creds:
+            logger.error(f"[wizard] create_agent: no credentials for project_id={project_id!r}")
+            err_text = (
+                "I couldn't find your SignalWire credentials. Please make sure you've logged in "
+                "on the dashboard before creating agents through the wizard."
+            )
+            result = SwaigFunctionResult(err_text)
+            result.swml_user_event({"type": "wizard_said", "text": err_text})
+            return result
 
-        employee_config = {
-            "id": employee_id,
+        employee_data = {
             "name": name,
             "role": role,
             "greeting": greeting,
@@ -1123,35 +1205,23 @@ class WizardAgent(AgentBase):
             "voice": voice,
             "language": language,
             "temperature": temperature,
-            "speech_hints": [],
             "enabled_functions": functions,
-            "transfer_number": "",
-            "transfer_from": "",
-            "sms_from_number": "",
-            "video_idle_url": "",
-            "video_talking_url": "",
-            "business_hours_start": 9,
-            "business_hours_end": 18,
-            "business_days": [0, 1, 2, 3, 4],
-            "documents": [],
-            "sendgrid_api_key": "",
-            "email_from_address": "",
-            "email_from_name": "",
-            "space_name": "",
-            "project_id": "",
-            "token": "",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "status": "active"
+            "speech_hints": [],
         }
 
-        # Store and mount the new agent
-        employees[employee_id] = employee_config
-        new_agent = VirtualEmployeeAgent(employee_config)
-        agent_instances[employee_id] = new_agent
-        _remount_employee_router(employee_id, new_agent)
+        try:
+            response = _wizard_create_employee_via_frontend(employee_data, creds)
+        except Exception as e:
+            logger.error(f"[wizard] create_agent: orchestration failed: {e}")
+            err_text = f"The build didn't go through — {e}. Want to try again?"
+            result = SwaigFunctionResult(err_text)
+            result.swml_user_event({"type": "wizard_said", "text": err_text})
+            return result
 
-        logger.info(f"[wizard] Created agent: {name} ({employee_id}) at /swml/{employee_id}")
+        employee = response.get("employee") or {}
+        employee_id = employee.get("id", "")
+        call_fabric_address = employee.get("callFabricAddress") or employee.get("call_fabric_address") or ""
+        logger.info(f"[wizard] Created agent via frontend: {name} ({employee_id}) at {call_fabric_address}")
 
         result = SwaigFunctionResult(
             f"Your agent {name} has been created and is live! "
@@ -1159,8 +1229,8 @@ class WizardAgent(AgentBase):
         )
         result.swml_user_event({
             "type": "agent_created",
-            "employee": employee_config,
-            "swml_route": f"/swml/{employee_id}"
+            "employee": {**employee, "id": employee_id, "callFabricAddress": call_fabric_address},
+            "swml_route": f"/swml/{employee_id}",
         })
         result.swml_user_event({
             "type": "wizard_said",
