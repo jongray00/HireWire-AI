@@ -123,7 +123,23 @@ export default function WizardCreationCanvas() {
 
         {/* Body — placeholder; populated in Tasks 11-13 */}
         <div className="flex-1 grid grid-cols-2 divide-x divide-purple-500/20 overflow-hidden">
-          <div data-testid="wizard-transcript" className="p-6 overflow-y-auto" />
+          <div
+            data-testid="wizard-transcript"
+            className="p-6 overflow-y-auto space-y-3 bg-gray-950/40"
+          >
+            <div className="text-xs uppercase tracking-wide text-gray-500 mb-3">📜 Conversation</div>
+            {transcript.length === 0 && (
+              <p className="text-sm text-gray-500 italic">Waiting for the conversation to begin…</p>
+            )}
+            {transcript.map((line, i) => (
+              <div key={`${line.t}-${i}`} className={`flex gap-2 text-sm ${line.role === "wizard" ? "text-purple-200" : "text-gray-200"}`}>
+                <span className={`shrink-0 font-medium ${line.role === "wizard" ? "text-purple-400" : "text-blue-400"}`}>
+                  {line.role === "wizard" ? "Wizard:" : "You:"}
+                </span>
+                <span className={line.isPartial ? "italic opacity-70" : ""}>{line.text}</span>
+              </div>
+            ))}
+          </div>
           <div data-testid="wizard-config" className="p-6 overflow-y-auto">
             {currentQuestion && <div>{currentQuestion.question}</div>}
           </div>

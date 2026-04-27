@@ -70,3 +70,36 @@ describe("WizardCreationCanvas — visibility", () => {
     expect(container.querySelector('[data-testid="wizard-canvas"]')).toBeNull();
   });
 });
+
+describe("WizardCreationCanvas — transcript", () => {
+  beforeEach(() => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+  });
+
+  it("renders wizard and user transcript lines in chronological order", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
+    act(() => { capturedOnTranscript({ role: "wizard", text: "Hi there", isPartial: false, t: 1 }); });
+    act(() => { capturedOnTranscript({ role: "user", text: "hello", isPartial: false, t: 2 }); });
+    rerender(<WizardCreationCanvas />);
+    const transcriptCol = screen.getByTestId("wizard-transcript");
+    expect(transcriptCol.textContent).toContain("Hi there");
+    expect(transcriptCol.textContent).toContain("hello");
+    // Wizard line comes before user line
+    expect(transcriptCol.textContent.indexOf("Hi there")).toBeLessThan(
+      transcriptCol.textContent.indexOf("hello")
+    );
+  });
+
+  it("replaces partial user line with the next partial from same role", () => {
+    const { rerender } = render(<WizardCreationCanvas />);
+    act(() => { capturedOnEvent({ type: "agent_config_question", question: "?", options: [], field: "x" }); });
+    act(() => { capturedOnTranscript({ role: "user", text: "hel", isPartial: true, t: 1 }); });
+    act(() => { capturedOnTranscript({ role: "user", text: "hello world", isPartial: true, t: 2 }); });
+    rerender(<WizardCreationCanvas />);
+    const transcriptCol = screen.getByTestId("wizard-transcript");
+    expect(transcriptCol.textContent).toContain("hello world");
+    expect(transcriptCol.textContent).not.toContain("hel ");
+  });
+});
