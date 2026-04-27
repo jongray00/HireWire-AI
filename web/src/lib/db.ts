@@ -400,6 +400,7 @@ export function insertCallLog(data: {
   avgLatencyMs?: number;
   totalInputTokens?: number;
   totalOutputTokens?: number;
+  builtAgentId?: string | null;
   rawPayload?: any;
 }) {
   const db = getDb();
@@ -409,13 +410,13 @@ export function insertCallLog(data: {
       duration_sec, summary, caller_intent, outcome, sentiment, topics,
       follow_up, user_messages, assistant_messages, total_messages,
       swaig_calls, avg_latency_ms, total_input_tokens, total_output_tokens,
-      raw_payload
+      built_agent_id, raw_payload
     ) VALUES (
       @id, @projectId, @employeeId, @employeeName, @employeeRole, @timestamp,
       @durationSec, @summary, @callerIntent, @outcome, @sentiment, @topics,
       @followUp, @userMessages, @assistantMessages, @totalMessages,
       @swaigCalls, @avgLatencyMs, @totalInputTokens, @totalOutputTokens,
-      @rawPayload
+      @builtAgentId, @rawPayload
     )
   `);
   stmt.run({
@@ -439,6 +440,7 @@ export function insertCallLog(data: {
     avgLatencyMs: data.avgLatencyMs || null,
     totalInputTokens: data.totalInputTokens || 0,
     totalOutputTokens: data.totalOutputTokens || 0,
+    builtAgentId: data.builtAgentId || null,
     rawPayload: data.rawPayload ? JSON.stringify(data.rawPayload) : null,
   });
 }
