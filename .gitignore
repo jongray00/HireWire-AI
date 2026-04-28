@@ -22,7 +22,12 @@ wheels/
 *.egg
 MANIFEST
 *.log
-.env
+
+# Environment files — broad coverage, never commit secrets
+*.env
+*.env.*
+!*.env.example
+
 venv/
 ENV/
 env/
@@ -59,13 +64,15 @@ dist/
 Thumbs.db
 
 # Credentials (keep agent credentials out of git)
-web/agent-credentials.json
+agent-credentials.json
+**/agent-credentials.json
+**/credentials.json
 
-# Local env files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+/data/
 
 # Git worktrees
 .worktrees/
