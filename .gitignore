@@ -76,3 +76,7 @@ agent-credentials.json
 
 # Git worktrees
 .worktrees/
+
+# Legacy single-tenant employee state (migrated to SQLite per spec §3)
+web/employees.json
+**/employees.json
