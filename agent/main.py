@@ -10,6 +10,10 @@ import os
 import uuid
 import json
 import logging
+import sqlite3
+import urllib.request
+import urllib.error
+from pathlib import Path as _Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -26,6 +30,12 @@ load_dotenv()
 SWML_USER = os.getenv('SWML_BASIC_AUTH_USER', 'signalwire')
 SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD', 'signalwire')
 APP_DOMAIN = os.getenv('APP_DOMAIN', '')
+# Frontend URL the wizard uses to invoke the create-virtual-employee orchestration.
+# Vite usually runs on 5000, but macOS Control Center / AirPlay grabs 5000 so it
+# falls back to 5001. Defaults match local dev; override in production.
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5001')
+# SQLite path for credentials lookup — same DB the frontend uses.
+WEB_DB_PATH = os.getenv('DATABASE_PATH', str(_Path(__file__).parent.parent / 'web' / 'data' / 'sally_sales.db'))
 
 
 def _detect_ngrok_url() -> Optional[str]:
@@ -207,23 +217,57 @@ class VirtualEmployeeAgent(AgentBase):
             token = os.getenv('SIGNALWIRE_TOKEN', '') or self.employee_config.get('token', '')
 
             if documents and space_name and project_id and token:
+                doc_descriptions = []
                 for doc in documents:
                     doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc
+                    doc_name = doc.get('name', doc_id[:8]) if isinstance(doc, dict) else doc_id[:8]
+                    doc_desc = doc.get('description', '') if isinstance(doc, dict) else ''
+                    doc_distance = doc.get('distance', 3.0) if isinstance(doc, dict) else 3.0
+
                     if doc_id:
+                        import hashlib
+                        doc_hash = hashlib.md5(str(doc_id).encode()).hexdigest()[:6]
+                        safe_name = doc_name.lower().replace(' ', '_').replace('-', '_')[:20]
+                        tool_name = f"search_{safe_name}_{doc_hash}"
                         self.add_skill("datasphere_serverless", {
                             "space_name": space_name,
                             "project_id": project_id,
                             "token": token,
                             "document_id": doc_id,
                             "count": 3,
-                            "distance": 5.0
+                            "distance": doc_distance,
+                            "tool_name": tool_name,
+                            "description": doc_desc or f"Search the {doc_name} knowledge base",
+                            "swaig_fields": {
+                                "fillers": {
+                                    "en-US": [
+                                        "Let me check our documentation...",
+                                        "Searching our knowledge base...",
+                                        "Looking that up for you..."
+                                    ]
+                                }
+                            }
                         })
-                        logger.info(f"  Added DataSphere skill for doc: {doc_id}")
+                        doc_descriptions.append(f"- {tool_name}: {doc_desc or doc_name}")
+                        logger.info(f"  Added DataSphere skill '{tool_name}' for doc: {doc_id} (distance={doc_distance})")
+
+                # Add routing guidance if multiple docs
+                if len(doc_descriptions) > 1:
+                    routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
+                    routing += "\nChoose the most relevant one based on the caller's question."
+                    self.add_pom_section("Knowledge Base Routing", body=routing)
             else:
                 if not documents:
                     logger.info(f"  search_knowledge enabled but no documents uploaded")
+                    self.employee_config['knowledge_status'] = 'no_documents'
                 else:
-                    logger.warning(f"  search_knowledge enabled but missing DataSphere credentials")
+                    missing = []
+                    if not space_name: missing.append('space_name')
+                    if not project_id: missing.append('project_id')
+                    if not token: missing.append('token')
+                    logger.warning(f"  search_knowledge enabled but missing: {', '.join(missing)}")
+                    self.employee_config['knowledge_status'] = 'misconfigured'
+                    self.employee_config['knowledge_error'] = f"Missing credentials: {', '.join(missing)}"
 
         # Remove SWAIG tools not in the enabled list
         # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter
@@ -675,6 +719,67 @@ class VirtualEmployeeAgent(AgentBase):
         return super().on_swml_request(request_data, callback_path, request)
 
 
+def _wizard_lookup_user_credentials(project_id: str) -> Optional[Dict[str, str]]:
+    """Look up the user's SignalWire credentials from the SQLite DB by project_id.
+
+    Returns {spaceUrl, projectId, apiToken} or None if not found.
+    The DB is populated by the frontend's upsertUser when the user logs in.
+    """
+    if not project_id:
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{WEB_DB_PATH}?mode=ro", uri=True, timeout=2.0)
+        try:
+            row = conn.execute(
+                "SELECT space_url, api_token FROM users WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        if not row:
+            return None
+        return {"spaceUrl": row[0], "projectId": project_id, "apiToken": row[1]}
+    except Exception as e:
+        logger.warning(f"[wizard] credential lookup failed: {e}")
+        return None
+
+
+# Track in-flight create_agent calls per (call_id, name) so SignalWire's
+# tool-call retries don't create duplicate employees.
+_wizard_create_inflight: Dict[str, Dict[str, Any]] = {}
+
+
+def _wizard_create_employee_via_frontend(employee_data: Dict[str, Any], credentials: Dict[str, str]) -> Dict[str, Any]:
+    """POST to the frontend's create-virtual-employee orchestration.
+
+    The orchestration verifies the SWML webhook (~10s), creates a SignalWire
+    Fabric resource, and persists to SQLite — typically 5-15s, but can exceed
+    30s if ngrok is slow. We wait up to 120s before giving up.
+
+    Returns the parsed JSON response (with .employee + callFabricAddress)
+    or raises an exception with a useful message.
+    """
+    url = f"{FRONTEND_URL}/api/signalwire/create-virtual-employee"
+    body = json.dumps({"employeeData": employee_data, "credentials": credentials}).encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120.0) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode()
+        except Exception:
+            err_body = ""
+        raise RuntimeError(f"frontend returned {e.code}: {err_body or e.reason}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"could not reach frontend at {FRONTEND_URL}: {e.reason}") from e
+
+
 class WizardAgent(AgentBase):
     """Voice-callable AI wizard that helps users build other AI agents through conversation.
 
@@ -703,43 +808,91 @@ class WizardAgent(AgentBase):
             ],
             function_fillers=[
                 "Updating the preview...",
-                "Creating your agent now..."
+                "Building it now...",
+                "One moment while I set this up..."
             ]
         )
 
+        # ---------- §1 Identity ----------
         self.prompt_add_section(
             "Identity",
             body=(
-                "You are the Agent Wizard, a friendly and knowledgeable setup assistant for Sally Sales. "
-                "Your purpose is to help users design and create custom AI agents through a guided conversation. "
-                "You make the process feel magical, exciting, and effortless."
+                "You are the Agent Wizard for Sally Sales — a warm, knowledgeable setup assistant "
+                "who builds custom AI voice agents for the user through a short phone conversation. "
+                "You make the experience feel collaborative and exciting, like working with a coworker "
+                "who really knows the product. You speak in short, friendly sentences (a phone call, "
+                "not a lecture). You do not pretend to be human, and you do not over-apologize. "
+                "The user is on the dashboard with a creation canvas open in front of them — let the "
+                "screen do the heavy lifting for visual choices, and use your voice for guidance and rapport."
             )
         )
 
+        # ---------- §2 Discovery ----------
         self.prompt_add_section(
-            "Setup Flow",
+            "Discovery — one open question, then build",
             bullets=[
-                "Start by warmly greeting the user and asking what kind of AI agent they want to create.",
-                "Use ask_config_question to display structured choices on the user's screen whenever you need their input — don't just ask verbally.",
-                "After gathering the basics (name, role, purpose), call preview_agent to show a preview card on the dashboard.",
-                "Continue gathering details — voice, capabilities, greeting — calling update_agent_preview as the design evolves.",
-                "When the user is happy with the preview, ask for final approval.",
-                "Once approved, call create_agent to build the real agent, then call finalize_agent to signal it is ready.",
-                "Keep your spoken responses short — 1-3 sentences — since this is a phone call.",
-                "Be enthusiastic but concise. Let the screen do the heavy lifting for complex choices.",
+                "Open with a brief greeting (one sentence) and a single open question: \"Tell me about the agent you'd like to build — what should it do, and who's it for?\"",
+                "LISTEN to the user's full description before doing anything. Don't interrupt to ask for a name or role yet.",
+                "From their description, derive everything you can yourself: a sensible agent name (e.g. \"Sarah\" for a sales rep, \"Max\" for support), a clear role title, a short prompt summarizing the job, a friendly greeting line, a sensible voice (openai.nova for warm, openai.shimmer for upbeat, openai.alloy for neutral/professional), and a small set of capabilities that fit the use case.",
+                "Immediately call preview_agent with all of those derived values, THEN say something like \"I'm building this up for you — take a look at the canvas\" so the user knows to glance at the screen.",
+                "Then call mark_checkpoint(\"identity\")."
             ]
         )
 
+        # ---------- §3 Building ----------
         self.prompt_add_section(
-            "Available Capabilities",
-            body=(
-                "When discussing what functions an agent can have, use list_available_functions to get the current list "
-                "and present them clearly to the user. Common choices: transfer_to_human, send_summary_sms, "
-                "schedule_callback, check_business_hours, collect_customer_info, send_email, end_call, search_knowledge."
-            )
+            "Building — confirm and refine quickly",
+            bullets=[
+                "Your goal is to ask AS FEW QUESTIONS AS POSSIBLE. The user described the agent — your job is to make sensible choices and confirm them, not to interrogate.",
+                "After the initial preview, narrate briefly: \"I'm setting up [name] as a [role] — they'll [1-2 capabilities] and use a [voice trait] voice. How does that look?\"",
+                "If the user accepts, call mark_checkpoint(\"voice\") and mark_checkpoint(\"capabilities\") in quick succession (you've made the choices, the user confirmed) and move to recap.",
+                "If the user wants changes, use update_agent_preview to apply them. Only ask follow-up questions for things you couldn't infer (e.g., \"What's the phone number to transfer to?\" when they enable transfer_to_human).",
+                "When the user is unsure between options for ONE field, use ask_config_question with 2-4 options (e.g., voice). Don't bombard them with sequential ask_config_question calls — pick the most important undecided field.",
+                "HARD RULE: mark_checkpoint must fire in order (identity → voice → capabilities → review), each at most once. Don't skip a stage even if you're moving fast.",
+                "Use update_agent_preview every time you change a field — the canvas reflects updates live.",
+                "Keep spoken responses under 2 sentences. The canvas does the visual heavy lifting."
+            ]
         )
 
-        self.set_param("temperature", 0.8)
+        # ---------- §4 Confirmation ----------
+        self.prompt_add_section(
+            "Confirmation",
+            bullets=[
+                "HARD RULE: Before mark_checkpoint(\"review\") — you MUST have already called mark_checkpoint(\"identity\"), mark_checkpoint(\"voice\"), AND mark_checkpoint(\"capabilities\") in that order. If any are missing, return to that section instead of marking review.",
+                "Recap in one breath: \"Okay — {name}, a {role} with {voice}'s voice, who can {top 2-3 capabilities}. Sound right?\" Use the user's actual name and capability choices, not placeholders.",
+                "Wait for explicit yes from the user. If they hesitate or ask for changes, treat it as another update_agent_preview cycle — don't push.",
+                "On explicit confirmation, call mark_checkpoint(\"review\"). Only then proceed to creation.",
+                "If the user says \"scrap it\" or \"start over\", clear the preview by calling update_agent_preview with empty fields and return to Discovery."
+            ]
+        )
+
+        # ---------- §5 Creation ----------
+        self.prompt_add_section(
+            "Creation",
+            bullets=[
+                "HARD RULE: Before create_agent — you MUST have already called mark_checkpoint(\"review\"). If you haven't, recap and confirm with the user first.",
+                "Say something brief and confident — \"Building {name} now…\" — then call create_agent with the full config (use the user's actual name, not a placeholder).",
+                "Silence during the create_agent call is okay (the canvas shows progress).",
+                "When create_agent returns successfully, call finalize_agent with the employee_id from the create_agent response immediately.",
+                "After finalize, say: \"{name} is live. You can call them right from the canvas, or end this call and I'll get out of your way.\"",
+                "If create_agent fails, surface the error briefly (\"Hmm, the build didn't go through — {short reason}. Want to try again?\") and offer to retry."
+            ]
+        )
+
+        # ---------- §6 Conversation Style (cross-cutting) ----------
+        self.prompt_add_section(
+            "Conversation Style",
+            bullets=[
+                "1–2 sentences per turn. Phone-call cadence, not chatbot.",
+                "Don't read out long lists — defer to ask_config_question so the user sees options on screen instead.",
+                "Don't say \"I'm calling the function now\" or narrate tool use. Just call the tool and let the screen update.",
+                "Use the user's words back at them when summarizing — if they said \"billing questions\", don't translate to \"customer service inquiries\".",
+                "Never invent capabilities the system doesn't have (video, payments, CRM integration). Say so plainly and offer the closest supported behavior.",
+                "When in doubt, ask. One question, then listen."
+            ]
+        )
+
+        self.set_param("temperature", 0.7)
 
         # Configure post-prompt for call logging
         self.set_post_prompt(
@@ -750,6 +903,7 @@ class WizardAgent(AgentBase):
             '- "sentiment": one of "positive", "neutral", or "negative"\n'
             '- "topics": array of topic keyword strings\n'
             '- "follow_up": any action items or follow-up needed (null if none)\n'
+            '- "agent_built_id": the employee id returned by create_agent if you created an agent in this session, otherwise null\n'
             "Respond ONLY with the JSON object, no extra text."
         )
 
@@ -802,6 +956,7 @@ class WizardAgent(AgentBase):
         }
     )
     def ask_config_question(self, args, raw_data):
+        logger.info(f"[WizardAgent.ask_config_question] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         question = args.get("question", "")
         options = args.get("options", [])
         field = args.get("field", "")
@@ -817,6 +972,11 @@ class WizardAgent(AgentBase):
             "options": options,
             "field": field
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "I've displayed the options on your screen. Take a look and let me know which one feels right."
+        })
+        logger.info(f"[WizardAgent.ask_config_question] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -859,6 +1019,7 @@ class WizardAgent(AgentBase):
         }
     )
     def preview_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.preview_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         name = args.get("name", "New Agent")
         role = args.get("role", "Assistant")
         prompt_summary = args.get("prompt_summary", "")
@@ -882,6 +1043,11 @@ class WizardAgent(AgentBase):
             "greeting": greeting,
             "prompt": prompt
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": f"I've shown a preview of {name} on your screen. Does that look good, or would you like to make any changes?"
+        })
+        logger.info(f"[WizardAgent.preview_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -919,6 +1085,7 @@ class WizardAgent(AgentBase):
         }
     )
     def update_agent_preview(self, args, raw_data):
+        logger.info(f"[WizardAgent.update_agent_preview] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         logger.info(f"[wizard] update_agent_preview: {list(args.keys())}")
 
         result = SwaigFunctionResult(
@@ -927,6 +1094,39 @@ class WizardAgent(AgentBase):
         result.swml_user_event({
             "type": "agent_preview",
             **{k: v for k, v in args.items() if v is not None}
+        })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "I've updated the preview on your screen with those changes."
+        })
+        logger.info(f"[WizardAgent.update_agent_preview] RETURNING")
+        return result
+
+    @AgentBase.tool(
+        name="mark_checkpoint",
+        description=(
+            "Mark a build-progress checkpoint reached. Call exactly once per stage, "
+            "in order: identity, voice, capabilities, review."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "stage": {
+                    "type": "string",
+                    "enum": ["identity", "voice", "capabilities", "review"],
+                    "description": "Which checkpoint to mark"
+                }
+            },
+            "required": ["stage"]
+        }
+    )
+    def mark_checkpoint(self, args, raw_data):
+        stage = args.get("stage", "")
+        logger.info(f"[wizard] mark_checkpoint: {stage}")
+        result = SwaigFunctionResult("")  # silent — no spoken response
+        result.swml_user_event({
+            "type": "wizard_checkpoint",
+            "stage": stage
         })
         return result
 
@@ -974,6 +1174,7 @@ class WizardAgent(AgentBase):
         }
     )
     def create_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.create_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         name = args.get("name", "New Agent")
         role = args.get("role", "Assistant")
         greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you?")
@@ -983,10 +1184,42 @@ class WizardAgent(AgentBase):
         temperature = args.get("temperature", 0.7)
         functions = args.get("functions", ["transfer_to_human", "end_call"])
 
-        employee_id = str(uuid.uuid4())[:8]
+        # Dedup guard: SignalWire retries SWAIG calls if a tool exceeds its
+        # response timeout. Without this guard each retry creates a new
+        # employee. Key the in-flight map by (call_id, name) so a genuinely
+        # different agent in the same call still works.
+        call_id = (raw_data or {}).get("call_id", "") if isinstance(raw_data, dict) else ""
+        dedup_key = f"{call_id}:{name}"
+        existing = _wizard_create_inflight.get(dedup_key)
+        if existing:
+            if existing.get("status") == "done":
+                logger.info(f"[wizard] create_agent: returning cached result for {dedup_key}")
+                return existing["result"]
+            # Still in progress — return a "we're working on it" response.
+            logger.info(f"[wizard] create_agent: orchestration already in flight for {dedup_key}, acknowledging")
+            ack_text = f"I'm still building {name}. Please give it a moment."
+            ack = SwaigFunctionResult(ack_text)
+            ack.swml_user_event({"type": "wizard_said", "text": ack_text})
+            return ack
+        _wizard_create_inflight[dedup_key] = {"status": "in_flight"}
 
-        employee_config = {
-            "id": employee_id,
+        # Orchestrate via the frontend route so the agent gets a real
+        # SignalWire SWML resource, a callFabricAddress, and a SQLite row —
+        # the same path used by the dashboard's "Create Employee" button.
+        project_id = (raw_data or {}).get("project_id") if isinstance(raw_data, dict) else None
+        creds = _wizard_lookup_user_credentials(project_id)
+        if not creds:
+            logger.error(f"[wizard] create_agent: no credentials for project_id={project_id!r}")
+            err_text = (
+                "I couldn't find your SignalWire credentials. Please make sure you've logged in "
+                "on the dashboard before creating agents through the wizard."
+            )
+            result = SwaigFunctionResult(err_text)
+            result.swml_user_event({"type": "wizard_said", "text": err_text})
+            _wizard_create_inflight.pop(dedup_key, None)
+            return result
+
+        employee_data = {
             "name": name,
             "role": role,
             "greeting": greeting,
@@ -994,35 +1227,24 @@ class WizardAgent(AgentBase):
             "voice": voice,
             "language": language,
             "temperature": temperature,
-            "speech_hints": [],
             "enabled_functions": functions,
-            "transfer_number": "",
-            "transfer_from": "",
-            "sms_from_number": "",
-            "video_idle_url": "",
-            "video_talking_url": "",
-            "business_hours_start": 9,
-            "business_hours_end": 18,
-            "business_days": [0, 1, 2, 3, 4],
-            "documents": [],
-            "sendgrid_api_key": "",
-            "email_from_address": "",
-            "email_from_name": "",
-            "space_name": "",
-            "project_id": "",
-            "token": "",
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "status": "active"
+            "speech_hints": [],
         }
 
-        # Store and mount the new agent
-        employees[employee_id] = employee_config
-        new_agent = VirtualEmployeeAgent(employee_config)
-        agent_instances[employee_id] = new_agent
-        _remount_employee_router(employee_id, new_agent)
+        try:
+            response = _wizard_create_employee_via_frontend(employee_data, creds)
+        except Exception as e:
+            logger.error(f"[wizard] create_agent: orchestration failed: {e}")
+            err_text = f"The build didn't go through — {e}. Want to try again?"
+            result = SwaigFunctionResult(err_text)
+            result.swml_user_event({"type": "wizard_said", "text": err_text})
+            _wizard_create_inflight.pop(dedup_key, None)
+            return result
 
-        logger.info(f"[wizard] Created agent: {name} ({employee_id}) at /swml/{employee_id}")
+        employee = response.get("employee") or {}
+        employee_id = employee.get("id", "")
+        call_fabric_address = employee.get("callFabricAddress") or employee.get("call_fabric_address") or ""
+        logger.info(f"[wizard] Created agent via frontend: {name} ({employee_id}) at {call_fabric_address}")
 
         result = SwaigFunctionResult(
             f"Your agent {name} has been created and is live! "
@@ -1030,9 +1252,18 @@ class WizardAgent(AgentBase):
         )
         result.swml_user_event({
             "type": "agent_created",
-            "employee": employee_config,
-            "swml_route": f"/swml/{employee_id}"
+            "employee": {**employee, "id": employee_id, "callFabricAddress": call_fabric_address},
+            "swml_route": f"/swml/{employee_id}",
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": f"Your agent {name} has been created and is live! "
+                    "I've updated the dashboard. Give it a moment to load, then you can make your first call."
+        })
+        # Cache the successful result so any retry within this call returns the same agent
+        # rather than creating a duplicate.
+        _wizard_create_inflight[dedup_key] = {"status": "done", "result": result, "employee": employee}
+        logger.info(f"[WizardAgent.create_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -1054,6 +1285,7 @@ class WizardAgent(AgentBase):
         }
     )
     def finalize_agent(self, args, raw_data):
+        logger.info(f"[WizardAgent.finalize_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         employee_id = args.get("employee_id", "")
         message = args.get("message", "Your agent is ready to take calls!")
 
@@ -1068,6 +1300,12 @@ class WizardAgent(AgentBase):
             "employee_id": employee_id,
             "message": message
         })
+        result.swml_user_event({
+            "type": "wizard_said",
+            "text": "Your agent is all set and ready to go. Is there anything else you'd like to adjust, "
+                    "or would you like to create another agent?"
+        })
+        logger.info(f"[WizardAgent.finalize_agent] RETURNING")
         return result
 
     @AgentBase.tool(
@@ -1079,6 +1317,7 @@ class WizardAgent(AgentBase):
         }
     )
     def list_available_functions(self, args, raw_data):
+        logger.info(f"[WizardAgent.list_available_functions] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
         logger.info("[wizard] list_available_functions called")
 
         functions_list = (
@@ -1092,6 +1331,7 @@ class WizardAgent(AgentBase):
             "- end_call: Politely end the call when the conversation is complete\n"
             "- search_knowledge: Search uploaded documents to answer caller questions"
         )
+        logger.info(f"[WizardAgent.list_available_functions] RETURNING")
         return SwaigFunctionResult(functions_list)
 
 
@@ -1135,6 +1375,30 @@ def _remount_employee_router(employee_id: str, agent: VirtualEmployeeAgent):
 
 # Employee Management API Endpoints
 
+def _validate_datasphere_doc(space_name: str, project_id: str, token: str, doc_id: str) -> dict:
+    """Validate a DataSphere document_id by making a test query."""
+    try:
+        import urllib.request
+        url = f"https://{space_name}/api/datasphere/documents/search"
+        body = json.dumps({
+            "document_id": doc_id,
+            "query_string": "test",
+            "count": 1,
+            "distance": 10.0
+        }).encode()
+        auth = f"{project_id}:{token}"
+        import base64
+        auth_header = base64.b64encode(auth.encode()).decode()
+        req = urllib.request.Request(url, data=body, method='POST', headers={
+            'Authorization': f'Basic {auth_header}',
+            'Content-Type': 'application/json'
+        })
+        resp = urllib.request.urlopen(req, timeout=5)
+        return {"valid": True}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 @app.post("/api/create-employee")
 async def create_employee(request: Request):
     """Create a new virtual employee"""
@@ -1175,6 +1439,20 @@ async def create_employee(request: Request):
             "updated_at": datetime.now().isoformat(),
             "status": "active"
         }
+
+        # Validate document IDs if search_knowledge is enabled
+        if 'search_knowledge' in employee_config.get('enabled_functions', []):
+            docs = employee_config.get('documents', [])
+            space = employee_config.get('space_name', '')
+            proj = employee_config.get('project_id', '')
+            tok = employee_config.get('token', '')
+            if docs and space and proj and tok:
+                for doc in docs:
+                    doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc
+                    if doc_id:
+                        result = _validate_datasphere_doc(space, proj, tok, doc_id)
+                        if not result['valid']:
+                            logger.warning(f"  Document {doc_id} validation failed: {result['error']}")
 
         # Store employee
         employees[employee_id] = employee_config
@@ -1403,6 +1681,42 @@ async def get_agent_info():
 
 
 # Health check endpoint
+@app.post("/api/post-prompt/{path:path}")
+async def proxy_post_prompt(path: str, request: Request):
+    """Proxy post-prompt webhooks from SignalWire to the frontend.
+
+    SignalWire calls the post_prompt_url that's set during on_swml_request — this
+    URL is built from APP_DOMAIN (the ngrok tunnel) which forwards port 8000 to
+    the agent. The post-prompt route lives in the frontend (port 5001), so we
+    forward the full body and headers there. Returns the frontend's response.
+    """
+    try:
+        body = await request.body()
+        target = f"{FRONTEND_URL}/api/post-prompt/{path}"
+        logger.info(f"[post-prompt proxy] forwarding to {target} ({len(body)} bytes)")
+        forward_req = urllib.request.Request(
+            target,
+            data=body,
+            method="POST",
+            headers={"Content-Type": request.headers.get("content-type", "application/json")},
+        )
+        with urllib.request.urlopen(forward_req, timeout=30.0) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode()
+        except Exception:
+            err_body = str(e)
+        logger.error(f"[post-prompt proxy] frontend returned {e.code}: {err_body}")
+        raise HTTPException(status_code=e.code, detail=err_body)
+    except urllib.error.URLError as e:
+        logger.error(f"[post-prompt proxy] could not reach frontend: {e.reason}")
+        raise HTTPException(status_code=502, detail=f"could not reach frontend at {FRONTEND_URL}: {e.reason}")
+    except Exception as e:
+        logger.error(f"[post-prompt proxy] unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

@@ -39,12 +39,20 @@ export async function POST(request, context) {
     const pathSegments = context?.params?.path || [];
     const employeeId = pathSegments[0] || 'unknown';
 
-    console.log(`[PostPrompt] Received post_conversation for employee ${employeeId}, call ${payload.call_id || 'unknown'}`);
+    // Wizard sessions are stored against a per-project pseudo-employee
+    // so the FK to employees(id) is satisfied. Path always says "wizard"
+    // — we resolve to "wizard-${projectId}" using the payload's project id.
+    const projectId = payload.project_id || payload.space_id || null;
+    const resolvedEmployeeId = employeeId === 'wizard' && projectId
+      ? `wizard-${projectId}`
+      : employeeId;
+
+    console.log(`[PostPrompt] Received post_conversation for employee ${resolvedEmployeeId}, call ${payload.call_id || 'unknown'}`);
 
     // Read employee info from database
-    let employeeName = employeeId;
+    let employeeName = resolvedEmployeeId;
     let employeeRole = '';
-    const emp = getEmployeeById(employeeId);
+    const emp = getEmployeeById(resolvedEmployeeId);
     if (emp) {
       employeeName = emp.name;
       employeeRole = emp.role;
@@ -76,7 +84,7 @@ export async function POST(request, context) {
     insertCallLog({
       id: logId,
       projectId: payload.project_id || payload.space_id || null,
-      employeeId,
+      employeeId: resolvedEmployeeId,
       employeeName,
       employeeRole,
       timestamp: logTimestamp,
@@ -94,10 +102,11 @@ export async function POST(request, context) {
       avgLatencyMs: avgLatency,
       totalInputTokens: payload.total_input_tokens || 0,
       totalOutputTokens: payload.total_output_tokens || 0,
+      builtAgentId: postPromptData?.agent_built_id || null,
       rawPayload: payload,
     });
 
-    console.log(`[PostPrompt] Stored call log: ${logId} (${employeeName}, ${durationSec}s, ${postPromptData?.outcome || 'unknown'})`);
+    console.log(`[PostPrompt] Stored call log: ${logId} (${resolvedEmployeeId}, ${durationSec}s, ${postPromptData?.outcome || 'unknown'})`);
 
     // Persist actions from global_data to call_actions table
     const globalData = payload?.global_data || {};
@@ -116,7 +125,7 @@ export async function POST(request, context) {
       const actionData = globalData[mapping.key];
       if (actionData && typeof actionData === 'object') {
         try {
-          insertCallAction(callId, employeeId, mapping.type, actionData);
+          insertCallAction(callId, resolvedEmployeeId, mapping.type, actionData);
           console.log(`[post-prompt] Persisted ${mapping.type} action for call ${callId}`);
         } catch (err) {
           console.error(`[post-prompt] Failed to persist ${mapping.type}:`, err);

@@ -1,5 +1,7 @@
 # Sally Sales Holistic Completion — Implementation Plan
 
+**Status:** ✅ Complete — all 14 tasks shipped on the `wizard` branch (`814c667` … `d7b7b69`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete Sally Sales with an inline wizard banner, RAG bug fixes, demo polish, and test coverage.
@@ -21,7 +23,7 @@
 
 This hook wraps the `@signalwire/js` SDK directly (not the call widget). It creates a client, dials the wizard, mounts audio/video into a ref, and exposes call controls + event handlers.
 
-- [ ] **Step 1: Create the hook**
+- [x] **Step 1: Create the hook**
 
 Create `web/src/app/hooks/useWizardCall.js`:
 
@@ -161,7 +163,7 @@ export function useWizardCall({ onEvent } = {}) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add web/src/app/hooks/useWizardCall.js
@@ -177,7 +179,7 @@ git commit -m "feat: add useWizardCall hook with direct SignalWire SDK integrati
 
 The banner has two states: idle CTA bar and active call banner. It replaces both the old wizard button and WizardPanel.
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `web/src/components/dashboard/WizardBanner.jsx`:
 
@@ -415,7 +417,7 @@ export default function WizardBanner({ onAgentCreated }) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add web/src/components/dashboard/WizardBanner.jsx
@@ -431,7 +433,7 @@ git commit -m "feat: add WizardBanner component with inline call experience"
 
 Add WizardBanner between the header and the page content so it persists across all pages.
 
-- [ ] **Step 1: Add import to layout.jsx**
+- [x] **Step 1: Add import to layout.jsx**
 
 Add at the top of `web/src/app/dashboard/layout.jsx` with the other imports:
 
@@ -439,7 +441,7 @@ Add at the top of `web/src/app/dashboard/layout.jsx` with the other imports:
 import WizardBanner from "@/components/dashboard/WizardBanner";
 ```
 
-- [ ] **Step 2: Add WizardBanner between header and main content**
+- [x] **Step 2: Add WizardBanner between header and main content**
 
 In `web/src/app/dashboard/layout.jsx`, find this section (around line 222-226):
 
@@ -466,7 +468,7 @@ Replace with:
         </main>
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add web/src/app/dashboard/layout.jsx
@@ -482,14 +484,14 @@ git commit -m "feat: mount WizardBanner globally in dashboard layout"
 
 Remove the old wizard button, WizardPanel, useCallWidget import, and related state/handlers.
 
-- [ ] **Step 1: Remove wizard-related imports**
+- [x] **Step 1: Remove wizard-related imports**
 
 In `web/src/app/dashboard/page.jsx`, remove these imports:
 - `import WizardPanel from "@/components/dashboard/WizardPanel";`
 - `import { useCallWidget } from "@/app/hooks/useCallWidget";`
 - `Wand2` from the lucide-react import (if only used for wizard)
 
-- [ ] **Step 2: Remove wizard state and handlers**
+- [x] **Step 2: Remove wizard state and handlers**
 
 Remove these from the component body:
 - `const { initiateCall, calling: wizardCalling } = useCallWidget();`
@@ -498,20 +500,20 @@ Remove these from the component body:
 - `const handleAgentCreated = (employee) => { ... };`
 - The `useEffect` for `wizard-event` listener
 
-- [ ] **Step 3: Remove wizard button JSX**
+- [x] **Step 3: Remove wizard button JSX**
 
 Remove the `<div className="mt-4">` block containing the wizard button (lines ~219-231).
 
-- [ ] **Step 4: Remove WizardPanel JSX**
+- [x] **Step 4: Remove WizardPanel JSX**
 
 Remove the `<WizardPanel wizardActive={wizardActive} onAgentCreated={handleAgentCreated} />` element.
 
-- [ ] **Step 5: Verify the page still renders**
+- [x] **Step 5: Verify the page still renders**
 
 Run: `cd web && npm run dev`
 Check that `http://localhost:5001/dashboard` renders without errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/app/dashboard/page.jsx
@@ -525,7 +527,7 @@ git commit -m "refactor: remove old popup wizard button and panel from dashboard
 **Files:**
 - Create: `web/src/components/dashboard/__tests__/WizardBanner.test.jsx`
 
-- [ ] **Step 1: Create the test file**
+- [x] **Step 1: Create the test file**
 
 Create `web/src/components/dashboard/__tests__/WizardBanner.test.jsx`:
 
@@ -629,12 +631,12 @@ describe("WizardBanner", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `cd web && npx vitest run src/components/dashboard/__tests__/WizardBanner.test.jsx`
 Expected: All tests pass
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add web/src/components/dashboard/__tests__/WizardBanner.test.jsx
@@ -650,7 +652,7 @@ git commit -m "test: add WizardBanner component tests"
 **Files:**
 - Modify: `agent/main.py` — `_configure_functions()` method (lines 197-236)
 
-- [ ] **Step 1: Fix the datasphere skill registration**
+- [x] **Step 1: Fix the datasphere skill registration**
 
 In `agent/main.py`, find `_configure_functions()` (line 197). Replace the datasphere skill loop (lines 209-221):
 
@@ -712,7 +714,7 @@ With:
                     self.add_pom_section("Knowledge Base Routing", body=routing)
 ```
 
-- [ ] **Step 2: Fix silent credential failure — surface knowledge_status**
+- [x] **Step 2: Fix silent credential failure — surface knowledge_status**
 
 Replace the `else` block (lines 222-226):
 
@@ -741,7 +743,7 @@ With:
                     self.employee_config['knowledge_error'] = f"Missing credentials: {', '.join(missing)}"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add agent/main.py
@@ -755,7 +757,7 @@ git commit -m "fix: RAG tool-name collision, distance threshold, credential visi
 **Files:**
 - Modify: `agent/main.py` — add validation in `create_employee` endpoint
 
-- [ ] **Step 1: Add document validation helper**
+- [x] **Step 1: Add document validation helper**
 
 Add this function before the `create_employee` endpoint in `agent/main.py`:
 
@@ -784,7 +786,7 @@ def _validate_datasphere_doc(space_name: str, project_id: str, token: str, doc_i
         return {"valid": False, "error": str(e)}
 ```
 
-- [ ] **Step 2: Add validation in create_employee**
+- [x] **Step 2: Add validation in create_employee**
 
 In the `create_employee` function, after `employee_config` is built but before `employees[employee_id] = employee_config`, add:
 
@@ -804,7 +806,7 @@ In the `create_employee` function, after `employee_config` is built but before `
                             logger.warning(f"  Document {doc_id} validation failed: {result['error']}")
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add agent/main.py
@@ -820,7 +822,7 @@ git commit -m "feat: validate DataSphere document_id at employee creation time"
 **Files:**
 - Modify: `web/src/app/dashboard/page.jsx`
 
-- [ ] **Step 1: Add skeleton component and loading state**
+- [x] **Step 1: Add skeleton component and loading state**
 
 In `web/src/app/dashboard/page.jsx`, find the stats rendering section. Add a skeleton loader that shows while `loading` is true. Find where the stats cards are rendered and wrap with a loading check:
 
@@ -842,7 +844,7 @@ In `web/src/app/dashboard/page.jsx`, find the stats rendering section. Add a ske
 )}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add web/src/app/dashboard/page.jsx
@@ -856,7 +858,7 @@ git commit -m "feat: add skeleton loaders for dashboard stats during fetch"
 **Files:**
 - Modify: `web/src/app/dashboard/layout.jsx`
 
-- [ ] **Step 1: Add backend health check and error banner**
+- [x] **Step 1: Add backend health check and error banner**
 
 In `web/src/app/dashboard/layout.jsx`, add state and a health check effect inside the component:
 
@@ -908,7 +910,7 @@ Then add a banner between the header and WizardBanner:
         <WizardBanner />
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add web/src/app/dashboard/layout.jsx
@@ -922,7 +924,7 @@ git commit -m "feat: add backend health check and offline error banner"
 **Files:**
 - Modify: `web/src/app/dashboard/employees/page.jsx`
 
-- [ ] **Step 1: Add event listener for agent_created and CSS animation**
+- [x] **Step 1: Add event listener for agent_created and CSS animation**
 
 In the employees page component, add a listener for wizard events that refreshes the employee list with an animation class:
 
@@ -952,7 +954,7 @@ Then on each employee card element, add a conditional animation class:
 className={`... ${employee.id === newAgentId ? 'animate-pulse ring-2 ring-purple-500 ring-opacity-50' : ''}`}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add web/src/app/dashboard/employees/page.jsx
@@ -968,7 +970,7 @@ git commit -m "feat: add agent creation highlight animation on employees page"
 **Files:**
 - Create: `web/src/app/api/agents/__tests__/route.test.js`
 
-- [ ] **Step 1: Create the test file**
+- [x] **Step 1: Create the test file**
 
 Create `web/src/app/api/agents/__tests__/route.test.js`:
 
@@ -1055,12 +1057,12 @@ describe("Agent CRUD API", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `cd web && npx vitest run src/app/api/agents/__tests__/route.test.js`
 Expected: All tests pass
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add web/src/app/api/agents/__tests__/route.test.js
@@ -1074,7 +1076,7 @@ git commit -m "test: add agent CRUD API tests"
 **Files:**
 - Create: `web/src/components/dashboard/__tests__/wizard-flow.test.jsx`
 
-- [ ] **Step 1: Create integration test**
+- [x] **Step 1: Create integration test**
 
 Create `web/src/components/dashboard/__tests__/wizard-flow.test.jsx`:
 
@@ -1139,12 +1141,12 @@ describe("Wizard Flow Integration", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `cd web && npx vitest run src/components/dashboard/__tests__/wizard-flow.test.jsx`
 Expected: All tests pass
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add web/src/components/dashboard/__tests__/wizard-flow.test.jsx
@@ -1158,7 +1160,7 @@ git commit -m "test: add wizard flow integration test covering full event sequen
 **Files:**
 - Create: `docs/DEMO_SCRIPT.md`
 
-- [ ] **Step 1: Create the demo script**
+- [x] **Step 1: Create the demo script**
 
 Create `docs/DEMO_SCRIPT.md`:
 
@@ -1240,7 +1242,7 @@ Dashboard → Demo Tools → **Reset Demo Data** → **Seed Example Data**
 - **Wizard not responding:** Check Python agent logs for errors. The wizard is at `/swml/wizard`
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/DEMO_SCRIPT.md
@@ -1253,16 +1255,16 @@ git commit -m "docs: add demo walkthrough script with step-by-step instructions"
 
 **Files:** None (verification only)
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 Run: `cd web && npm test`
 Expected: All test suites pass
 
-- [ ] **Step 2: Fix any failures**
+- [x] **Step 2: Fix any failures**
 
 If tests fail, fix them before proceeding.
 
-- [ ] **Step 3: Commit if any fixes needed**
+- [x] **Step 3: Commit if any fixes needed**
 
 ```bash
 git add -A

@@ -16,6 +16,8 @@ import {
   Moon,
 } from "lucide-react";
 import { useThemeStore } from "@/app/stores/theme";
+import WizardBanner from "@/components/dashboard/WizardBanner";
+import WizardCreationCanvas from "@/components/dashboard/WizardCreationCanvas";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -81,6 +83,22 @@ export default function DashboardLayout({ children }) {
 
     checkAuth();
   }, [navigate]);
+
+  const [backendOnline, setBackendOnline] = useState(true);
+
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch("/api/credentials");
+        setBackendOnline(res.ok);
+      } catch {
+        setBackendOnline(false);
+      }
+    };
+    checkBackend();
+    const interval = setInterval(checkBackend, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async () => {
     // Clear server-side session cookie
@@ -219,6 +237,33 @@ export default function DashboardLayout({ children }) {
             </div>
           </div>
         </header>
+
+        {/* Backend offline banner */}
+        {!backendOnline && (
+          <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-3 bg-red-900/20 border border-red-500/30 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-sm text-red-300 font-medium">Agent backend offline</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/credentials");
+                  setBackendOnline(res.ok);
+                } catch { setBackendOnline(false); }
+              }}
+              aria-label="Retry backend connection"
+              className="px-3 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 text-xs rounded-lg transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Wizard Banner — persists across all pages */}
+        <WizardBanner />
+        <WizardCreationCanvas />
 
         {/* Page Content */}
         <main className="p-4 lg:p-6">

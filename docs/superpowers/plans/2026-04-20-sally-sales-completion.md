@@ -1,5 +1,7 @@
 # Sally Sales Completion — Implementation Plan
 
+**Status:** ✅ Implementation complete — `agentSchema.js`, `/api/agents` endpoint, the wizard agent, and dashboard pages all shipped. Step checkboxes were not back-filled; treat them as historical. The follow-up [`2026-04-20-holistic-completion.md`](./2026-04-20-holistic-completion.md) plan addressed remaining demo polish.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete Sally Sales into a full demo application with a flagship voice-driven wizard agent that builds other AI agents through conversation with live dashboard previews.

@@ -368,6 +368,7 @@ export default function EmployeesPage() {
   const [fixingEmployees, setFixingEmployees] = useState({}); // { [id]: { status, message? } }
   const [fixingAll, setFixingAll] = useState(false);
   const [fixAllResult, setFixAllResult] = useState(null);
+  const [newAgentId, setNewAgentId] = useState(null);
 
   useEffect(() => {
     loadEmployees();
@@ -380,6 +381,20 @@ export default function EmployeesPage() {
       }
       setSearchParams({}, { replace: true });
     }
+  }, []);
+
+  useEffect(() => {
+    const handleWizardEvent = (event) => {
+      const detail = event?.detail || event;
+      if (detail?.type === 'agent_created' && detail?.employee?.id) {
+        setNewAgentId(detail.employee.id);
+        loadEmployees();
+        setTimeout(() => setNewAgentId(null), 2000);
+      }
+    };
+    window.addEventListener("wizard-event", handleWizardEvent);
+    return () => window.removeEventListener("wizard-event", handleWizardEvent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadPhoneNumbers = async () => {
@@ -822,6 +837,7 @@ export default function EmployeesPage() {
               onAssignPhone={(phoneNumber) => handleAssignPhone(employee.id, phoneNumber)}
               onUnassignPhone={() => handleUnassignPhone(employee.id)}
               onToggleAssign={() => setAssigningPhone(assigningPhone === employee.id ? null : employee.id)}
+              isNew={employee.id === newAgentId}
             />
           ))}
         </div>
@@ -834,7 +850,7 @@ export default function EmployeesPage() {
 // Employee Card
 // ---------------------------------------------------------------------------
 
-function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDelete, phoneNumbers, assigningPhone, phoneLoading, onAssignPhone, onUnassignPhone, onToggleAssign }) {
+function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDelete, phoneNumbers, assigningPhone, phoneLoading, onAssignPhone, onUnassignPhone, onToggleAssign, isNew }) {
   const [copied, setCopied] = useState(false);
   const { initiateCall, calling } = useCallWidget();
 
@@ -874,7 +890,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
           : fixSuccess
           ? "border-green-300 dark:border-green-600"
           : "border-gray-200 dark:border-gray-700"
-      }`}
+      } ${isNew ? "animate-pulse ring-2 ring-purple-500 ring-opacity-50" : ""}`}
     >
       {/* Header row */}
       <div className="flex items-start justify-between mb-4">

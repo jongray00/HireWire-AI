@@ -18,6 +18,7 @@ import OutcomeBadge from "./components/badges/OutcomeBadge";
 import PerformanceRatingBadge from "./components/badges/PerformanceRatingBadge";
 import CallDetail from "./components/CallDetail";
 import CallLogDetail from "@/components/dashboard/CallLogDetail";
+import CallLogsList from "./components/CallLogsList";
 
 // ---------------------------------------------------------------------------
 // KPI Stat Cards
@@ -83,6 +84,7 @@ export default function CallLogsPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all"); // "all" | "employees" | "wizard"
 
   useEffect(() => {
     fetchLogs();
@@ -118,6 +120,9 @@ export default function CallLogsPage() {
 
   const employeeNames = [...new Set(logs.map((l) => l.employeeName).filter(Boolean))];
 
+  const isWizardLog = (log) =>
+    typeof log.employeeId === "string" && log.employeeId.startsWith("wizard-");
+
   const filteredLogs = logs.filter((log) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
@@ -128,7 +133,10 @@ export default function CallLogsPage() {
       log.topics?.some((t) => t.toLowerCase().includes(q));
     const matchesEmployee = !employeeFilter || log.employeeName === employeeFilter;
     const matchesSentiment = !sentimentFilter || log.sentiment === sentimentFilter;
-    return matchesSearch && matchesEmployee && matchesSentiment;
+    const matchesType =
+      typeFilter === "all" ||
+      (typeFilter === "wizard" ? isWizardLog(log) : !isWizardLog(log));
+    return matchesSearch && matchesEmployee && matchesSentiment && matchesType;
   });
 
   if (loading) {
@@ -160,6 +168,24 @@ export default function CallLogsPage() {
       </div>
 
       <KpiCards logs={logs} />
+
+      {/* Type Filter Chips */}
+      <div className="flex gap-2">
+        {["all", "employees", "wizard"].map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setTypeFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              typeFilter === f
+                ? "bg-purple-600 text-white"
+                : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+            }`}
+          >
+            {f === "all" ? "All" : f === "employees" ? "Employees" : "🧙 Wizard"}
+          </button>
+        ))}
+      </div>
 
       {/* Search and Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -230,9 +256,24 @@ export default function CallLogsPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-gray-900 dark:text-white">{log.employeeName}</span>
+                      {isWizardLog(log) ? (
+                        <span className="px-2 py-0.5 bg-purple-600/20 border border-purple-500/40 rounded-full text-xs text-purple-300">
+                          🧙 Wizard Session
+                        </span>
+                      ) : (
+                        <span className="font-medium text-gray-900 dark:text-white">{log.employeeName}</span>
+                      )}
                       <span className="text-xs text-gray-500 dark:text-gray-400">{log.employeeRole}</span>
                       <PerformanceRatingBadge avgLatencyMs={log.avgLatencyMs} />
+                      {log.builtAgentId && (
+                        <a
+                          href={`/dashboard/employees/${log.builtAgentId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-green-400 hover:text-green-300"
+                        >
+                          → Built: {logs.find((l) => l.employeeId === log.builtAgentId)?.employeeName || log.builtAgentId}
+                        </a>
+                      )}
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">{log.summary || "—"}</p>
                   </div>

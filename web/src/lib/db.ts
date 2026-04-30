@@ -9,18 +9,24 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
-const DB_PATH = join(process.cwd(), 'data', 'sally_sales.db');
-
 let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!_db) {
+    const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'sally_sales.db');
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
     initTables(_db);
   }
   return _db;
+}
+
+export function closeDb(): void {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
 }
 
 function initTables(db: Database.Database) {
@@ -127,11 +133,25 @@ function initTables(db: Database.Database) {
     { name: 'sendgrid_api_key', type: "TEXT DEFAULT ''" },
     { name: 'email_from_address', type: "TEXT DEFAULT ''" },
     { name: 'email_from_name', type: "TEXT DEFAULT ''" },
+    { name: 'kind', type: "TEXT NOT NULL DEFAULT 'employee'" },
+    { name: 'is_hidden', type: 'INTEGER NOT NULL DEFAULT 0' },
+  ];
+
+  const callLogColumnsToAdd = [
+    { name: 'built_agent_id', type: 'TEXT' },
   ];
 
   for (const col of employeeColumnsToAdd) {
     try {
       db.exec(`ALTER TABLE employees ADD COLUMN ${col.name} ${col.type}`);
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column')) throw e;
+    }
+  }
+
+  for (const col of callLogColumnsToAdd) {
+    try {
+      db.exec(`ALTER TABLE call_logs ADD COLUMN ${col.name} ${col.type}`);
     } catch (e: any) {
       if (!e.message.includes('duplicate column')) throw e;
     }
@@ -168,6 +188,13 @@ export function upsertUser(data: {
     subscriberId: data.subscriberId || null,
     subscriberData: data.subscriberData ? JSON.stringify(data.subscriberData) : null,
   });
+
+  // Seed a hidden wizard pseudo-employee for this project so post-prompt
+  // call logs can use it as the FK target without violating constraints.
+  db.prepare(`
+    INSERT OR IGNORE INTO employees (id, project_id, name, role, kind, is_hidden)
+    VALUES (?, ?, 'Setup Wizard', 'Agent Builder', 'wizard', 1)
+  `).run(`wizard-${data.projectId}`, data.projectId);
 }
 
 export function getUserByProjectId(projectId: string) {
@@ -181,12 +208,16 @@ export function getUserByProjectId(projectId: string) {
 
 export function getEmployeesByProject(projectId: string) {
   const db = getDb();
-  return db.prepare('SELECT * FROM employees WHERE project_id = ? AND status = ? ORDER BY created_at DESC').all(projectId, 'active') as any[];
+  return db.prepare(
+    "SELECT * FROM employees WHERE project_id = ? AND status = ? AND is_hidden = 0 AND kind = 'employee' ORDER BY created_at DESC"
+  ).all(projectId, 'active') as any[];
 }
 
 export function getAllEmployees() {
   const db = getDb();
-  return db.prepare('SELECT * FROM employees WHERE status = ? ORDER BY created_at DESC').all('active') as any[];
+  return db.prepare(
+    "SELECT * FROM employees WHERE status = ? AND is_hidden = 0 AND kind = 'employee' ORDER BY created_at DESC"
+  ).all('active') as any[];
 }
 
 export function getEmployeeById(id: string) {
@@ -369,6 +400,7 @@ export function insertCallLog(data: {
   avgLatencyMs?: number;
   totalInputTokens?: number;
   totalOutputTokens?: number;
+  builtAgentId?: string | null;
   rawPayload?: any;
 }) {
   const db = getDb();
@@ -378,13 +410,13 @@ export function insertCallLog(data: {
       duration_sec, summary, caller_intent, outcome, sentiment, topics,
       follow_up, user_messages, assistant_messages, total_messages,
       swaig_calls, avg_latency_ms, total_input_tokens, total_output_tokens,
-      raw_payload
+      built_agent_id, raw_payload
     ) VALUES (
       @id, @projectId, @employeeId, @employeeName, @employeeRole, @timestamp,
       @durationSec, @summary, @callerIntent, @outcome, @sentiment, @topics,
       @followUp, @userMessages, @assistantMessages, @totalMessages,
       @swaigCalls, @avgLatencyMs, @totalInputTokens, @totalOutputTokens,
-      @rawPayload
+      @builtAgentId, @rawPayload
     )
   `);
   stmt.run({
@@ -408,6 +440,7 @@ export function insertCallLog(data: {
     avgLatencyMs: data.avgLatencyMs || null,
     totalInputTokens: data.totalInputTokens || 0,
     totalOutputTokens: data.totalOutputTokens || 0,
+    builtAgentId: data.builtAgentId || null,
     rawPayload: data.rawPayload ? JSON.stringify(data.rawPayload) : null,
   });
 }
@@ -547,6 +580,7 @@ export function callLogRowToJson(row: any) {
     avgLatencyMs: row.avg_latency_ms,
     totalInputTokens: row.total_input_tokens,
     totalOutputTokens: row.total_output_tokens,
+    builtAgentId: row.built_agent_id || null,
     _raw: safeJsonParse(row.raw_payload, null),
   };
 }
