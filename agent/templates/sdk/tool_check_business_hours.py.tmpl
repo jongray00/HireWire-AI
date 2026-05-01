@@ -1,0 +1,26 @@
+    @AgentBase.tool(
+        name="check_business_hours",
+        description="Check if the business is currently open and provide hours information",
+        parameters={"type": "object", "properties": {}},
+    )
+    def check_business_hours(self, args, raw_data):
+        now = datetime.now()
+        hour = now.hour
+        weekday = now.weekday()
+
+        start = ${BUSINESS_HOURS_START}
+        end = ${BUSINESS_HOURS_END}
+        days = ${BUSINESS_DAYS_REPR}
+
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        open_days = [day_names[d] for d in sorted(days)]
+        hours_str = f"{start % 12 or 12} {'AM' if start < 12 else 'PM'} to {end % 12 or 12} {'AM' if end < 12 else 'PM'}"
+
+        if weekday in days and start <= hour < end:
+            return SwaigFunctionResult(
+                f"We are currently open. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}."
+            )
+        return SwaigFunctionResult(
+            f"We are currently closed. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}. "
+            "I can take a message or schedule a callback for when we reopen."
+        )

@@ -1,0 +1,35 @@
+    @AgentBase.tool(
+        name="schedule_callback",
+        description="Schedule a PHONE CALLBACK for later. Collects name, number, preferred time, and reason. This is NOT for sending text messages — use send_summary_sms for that.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "caller_name": {"type": "string", "description": "The caller's name"},
+                "callback_number": {"type": "string", "description": "Phone number to call back"},
+                "preferred_time": {"type": "string", "description": "When the caller would like to be called back"},
+                "reason": {"type": "string", "description": "Reason for the callback"},
+            },
+            "required": ["caller_name", "callback_number", "preferred_time"],
+        },
+    )
+    def schedule_callback(self, args, raw_data):
+        caller_name = args.get("caller_name", "")
+        callback_number = args.get("callback_number", "")
+        preferred_time = args.get("preferred_time", "")
+        reason = args.get("reason", "")
+
+        logger.info(f"Callback scheduled for {caller_name} at {preferred_time}")
+
+        result = SwaigFunctionResult(
+            f"I've scheduled a callback for {caller_name} at {preferred_time}. "
+            "Someone from our team will reach out to you then."
+        )
+        result.update_global_data({
+            "callback": {
+                "name": caller_name,
+                "number": callback_number,
+                "time": preferred_time,
+                "reason": reason[:100],
+            }
+        })
+        return result

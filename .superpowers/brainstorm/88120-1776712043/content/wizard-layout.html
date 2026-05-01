@@ -1,0 +1,156 @@
+<h2>Inline Wizard Layout</h2>
+<p class="subtitle">How should the wizard video and dashboard coexist on screen?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:300px;gap:2px;background:#1a1a2e;border-radius:8px;overflow:hidden;padding:4px;">
+        <!-- Sidebar -->
+        <div style="width:50px;background:#16162a;border-radius:6px;padding:8px 4px;display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:24px;height:24px;background:#6366f1;border-radius:6px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+        </div>
+        <!-- Main content -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <!-- Wizard panel - small, top right -->
+          <div style="display:flex;gap:4px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <!-- Stats row -->
+              <div style="display:flex;gap:4px;">
+                <div style="flex:1;height:40px;background:#1e1e3a;border-radius:4px;"></div>
+                <div style="flex:1;height:40px;background:#1e1e3a;border-radius:4px;"></div>
+                <div style="flex:1;height:40px;background:#1e1e3a;border-radius:4px;"></div>
+              </div>
+              <!-- Employee cards -->
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                <div style="height:50px;background:#1e1e3a;border-radius:4px;border-left:3px solid #22c55e;"></div>
+                <div style="height:50px;background:#1e1e3a;border-radius:4px;border-left:3px solid #6366f1;"></div>
+                <div style="height:50px;background:#2a1e3a;border:1px dashed #a855f7;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+                  <span style="color:#a855f7;font-size:10px;">✨ New agent appearing...</span>
+                </div>
+              </div>
+            </div>
+            <!-- Wizard video panel -->
+            <div style="width:180px;display:flex;flex-direction:column;gap:4px;">
+              <div style="height:120px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+                <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:50%;"></div>
+                <span style="color:white;font-size:8px;opacity:0.8;">🎤 Wizard Active</span>
+              </div>
+              <div style="flex:1;background:#1e1e3a;border:1px solid #6366f1;border-radius:4px;padding:6px;">
+                <div style="font-size:7px;color:#a855f7;margin-bottom:4px;">PREVIEW</div>
+                <div style="height:8px;background:#333;border-radius:2px;margin-bottom:3px;width:80%;"></div>
+                <div style="height:6px;background:#333;border-radius:2px;width:60%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Sidebar Panel</h3>
+      <p>Wizard video + preview card in a right sidebar. Dashboard fills the rest. Employee list visible — new agents animate in as the wizard creates them.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:300px;gap:2px;background:#1a1a2e;border-radius:8px;overflow:hidden;padding:4px;">
+        <!-- Sidebar -->
+        <div style="width:50px;background:#16162a;border-radius:6px;padding:8px 4px;display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:24px;height:24px;background:#6366f1;border-radius:6px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+        </div>
+        <!-- Main content -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <!-- Wizard bar at top -->
+          <div style="display:flex;gap:4px;align-items:stretch;">
+            <div style="width:100px;height:70px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:6px;display:flex;align-items:center;justify-content:center;">
+              <div style="width:36px;height:36px;background:rgba(255,255,255,0.2);border-radius:50%;"></div>
+            </div>
+            <div style="flex:1;background:#1e1e3a;border:1px solid #6366f1;border-radius:6px;padding:8px;display:flex;flex-direction:column;justify-content:center;">
+              <div style="font-size:8px;color:#a855f7;margin-bottom:4px;">💬 What kind of agent?</div>
+              <div style="display:flex;gap:4px;">
+                <div style="padding:2px 6px;background:#4f46e5;border-radius:3px;font-size:7px;color:white;">Support</div>
+                <div style="padding:2px 6px;background:#333;border-radius:3px;font-size:7px;color:#aaa;">Sales</div>
+                <div style="padding:2px 6px;background:#333;border-radius:3px;font-size:7px;color:#aaa;">Receptionist</div>
+              </div>
+            </div>
+            <div style="font-size:7px;color:#ef4444;display:flex;align-items:center;padding:0 6px;cursor:pointer;">✕</div>
+          </div>
+          <!-- Dashboard below -->
+          <div style="display:flex;gap:4px;">
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+          </div>
+          <!-- Employee list -->
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+            <div style="height:45px;background:#1e1e3a;border-radius:4px;border-left:3px solid #22c55e;"></div>
+            <div style="height:45px;background:#1e1e3a;border-radius:4px;border-left:3px solid #6366f1;"></div>
+            <div style="height:45px;background:#2a1e3a;border:1px dashed #a855f7;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+              <span style="color:#a855f7;font-size:10px;">✨ New agent appearing...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Top Banner</h3>
+      <p>Wizard video + questions as a collapsible banner at the top. Small video on left, question/preview on right. Dashboard scrolls below with full width. Closes with X when done.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:300px;gap:2px;background:#1a1a2e;border-radius:8px;overflow:hidden;padding:4px;">
+        <!-- Sidebar -->
+        <div style="width:50px;background:#16162a;border-radius:6px;padding:8px 4px;display:flex;flex-direction:column;gap:8px;align-items:center;">
+          <div style="width:24px;height:24px;background:#6366f1;border-radius:6px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:#333;border-radius:1px;"></div>
+        </div>
+        <!-- Main: employees page -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;gap:4px;">
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+            <div style="flex:1;height:36px;background:#1e1e3a;border-radius:4px;"></div>
+          </div>
+          <!-- Employee cards -->
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+            <div style="height:50px;background:#1e1e3a;border-radius:4px;border-left:3px solid #22c55e;"></div>
+            <div style="height:50px;background:#1e1e3a;border-radius:4px;border-left:3px solid #6366f1;"></div>
+            <div style="height:50px;background:#2a1e3a;border:1px dashed #a855f7;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+              <span style="color:#a855f7;font-size:10px;">✨ New agent appearing...</span>
+            </div>
+            <div style="height:50px;background:#1e1e3a;border-radius:4px;opacity:0.5;"></div>
+          </div>
+        </div>
+        <!-- Floating wizard pip -->
+        <div style="position:absolute;bottom:20px;right:20px;width:160px;display:flex;flex-direction:column;gap:4px;">
+          <div style="height:100px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:0 4px 20px rgba(99,102,241,0.4);">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,0.2);border-radius:50%;"></div>
+            <span style="color:white;font-size:7px;opacity:0.8;">🎤 Wizard</span>
+          </div>
+          <div style="background:#1e1e3a;border:1px solid #6366f1;border-radius:6px;padding:6px;box-shadow:0 4px 20px rgba(99,102,241,0.3);">
+            <div style="font-size:7px;color:#a855f7;margin-bottom:3px;">💬 Pick capabilities:</div>
+            <div style="display:flex;gap:3px;flex-wrap:wrap;">
+              <div style="padding:1px 4px;background:#4f46e5;border-radius:2px;font-size:6px;color:white;">SMS</div>
+              <div style="padding:1px 4px;background:#333;border-radius:2px;font-size:6px;color:#aaa;">Email</div>
+              <div style="padding:1px 4px;background:#333;border-radius:2px;font-size:6px;color:#aaa;">Transfer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Floating PiP</h3>
+      <p>Picture-in-picture style — small floating wizard video + question panel in the corner. Dashboard has full real estate. Draggable. Navigate freely (employees, logs, etc.) while wizard runs.</p>
+    </div>
+  </div>
+</div>

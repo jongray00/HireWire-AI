@@ -1,0 +1,108 @@
+"""
+${NAME} — generated from a Sally-Sales virtual employee.
+
+This file was emitted by `agent/lib/sdk_code_generator.py`. It mirrors what
+`VirtualEmployeeAgent` does at runtime in `agent/main.py`, but as a single,
+self-contained, copy-pasteable script that uses the public `signalwire-agents`
+SDK.
+
+Run it locally:
+    pip install signalwire-agents
+    export SIGNALWIRE_PROJECT_ID=...
+    export SIGNALWIRE_TOKEN=...
+    export SIGNALWIRE_SPACE=...
+    export SENDGRID_API_KEY=...   # only if `send_email` is enabled
+    python ${SAFE_NAME}.py
+"""
+
+import os
+import re
+import logging
+from datetime import datetime
+from signalwire_agents import AgentBase
+from signalwire_agents.core.function_result import SwaigFunctionResult
+
+logger = logging.getLogger(__name__)
+
+
+class ${CLASS_NAME}(AgentBase):
+    """Generated agent: ${NAME} (${ROLE})."""
+
+    def __init__(self):
+        super().__init__(
+            name=${NAME_REPR},
+            route=${ROUTE_REPR},
+            host="0.0.0.0",
+            port=${PORT},
+        )
+
+        self.add_language(
+            name=${LANGUAGE_NAME_REPR},
+            code=${LANGUAGE_CODE_REPR},
+            voice=${VOICE_REPR},
+            speech_fillers=[
+                "Let me help you with that...",
+                "One moment please...",
+                "I'm processing your request...",
+            ],
+            function_fillers=[
+                "Let me check on that for you...",
+                "I'm looking that up now...",
+            ],
+        )
+
+        self.speech_hints = ${SPEECH_HINTS_REPR}
+
+        self._configure_personality()
+        self._configure_post_prompt()
+${KNOWLEDGE_BASE_BLOCK}
+
+    # ---- Personality ------------------------------------------------------
+
+    def _configure_personality(self):
+        self.prompt_add_section(
+            "Identity",
+            body=${IDENTITY_BODY_REPR},
+        )
+
+${PROMPT_SECTION_BLOCK}
+        self.prompt_add_section(
+            "Voice Interaction Guidelines",
+            bullets=${GUIDELINES_REPR},
+        )
+
+        self.set_param("temperature", ${TEMPERATURE})
+
+    # ---- Post-prompt (call analytics) -------------------------------------
+
+    def _configure_post_prompt(self):
+        self.set_post_prompt(
+            "Summarize this conversation as JSON with exactly these fields:\n"
+            '- "summary": 2-3 sentence summary of the call\n'
+            '- "caller_intent": what the caller wanted (1 sentence)\n'
+            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
+            '- "sentiment": one of "positive", "neutral", or "negative"\n'
+            '- "topics": array of topic keyword strings\n'
+            '- "follow_up": any action items or follow-up needed (null if none)\n'
+            "Respond ONLY with the JSON object, no extra text."
+        )
+
+    # ---- Helpers ----------------------------------------------------------
+
+    @staticmethod
+    def _clean_phone_number(number: str) -> str:
+        if not number:
+            return ""
+        cleaned = re.sub(r"[^\d+]", "", number)
+        if cleaned and not cleaned.startswith("+"):
+            cleaned = "+" + cleaned
+        return cleaned
+
+    # ---- SWAIG tools ------------------------------------------------------
+
+${TOOL_BLOCKS}
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    agent = ${CLASS_NAME}()
+    agent.run()

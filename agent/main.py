@@ -21,6 +21,9 @@ from dotenv import load_dotenv
 from signalwire_agents import AgentBase, SwaigFunctionResult
 from fastapi import FastAPI, Request, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+
+from lib.sdk_code_generator import render_employee_code
 import uvicorn
 
 # Load environment variables from .env file
@@ -1497,6 +1500,18 @@ async def get_employee(employee_id: str = Path(...)):
         "success": True,
         "employee": employees[employee_id]
     }
+
+
+@app.get("/agent-code/{employee_id}", response_class=PlainTextResponse)
+async def get_agent_code(employee_id: str = Path(...)):
+    """Render the employee's config as a runnable signalwire-agents Python script."""
+    if employee_id not in employees:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    try:
+        return render_employee_code(employees[employee_id])
+    except Exception as e:
+        logger.error(f"Failed to render agent code for {employee_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"render failed: {e}")
 
 
 @app.patch("/api/employee/{employee_id}")

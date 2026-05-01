@@ -1,0 +1,41 @@
+    @AgentBase.tool(
+        name="collect_customer_info",
+        description="Collect structured customer information during the call. Gather details conversationally — name, email, phone, company, and any notes. Call this once you have collected the relevant details.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The customer's full name"},
+                "email": {"type": "string", "description": "The customer's email address"},
+                "phone": {"type": "string", "description": "The customer's phone number"},
+                "company": {"type": "string", "description": "The customer's company or organization"},
+                "notes": {"type": "string", "description": "Any additional notes or context from the conversation"},
+            },
+        },
+    )
+    def collect_customer_info(self, args, raw_data):
+        name = args.get("name", "")
+        email = args.get("email", "")
+        phone = args.get("phone", "")
+        company = args.get("company", "")
+        notes = args.get("notes", "")
+
+        collected_fields = []
+        if name: collected_fields.append(f"name ({name})")
+        if email: collected_fields.append(f"email ({email})")
+        if phone: collected_fields.append(f"phone ({phone})")
+        if company: collected_fields.append(f"company ({company})")
+        logger.info(f"Customer info collected: {', '.join(collected_fields) or 'no fields'}")
+
+        result = SwaigFunctionResult(
+            f"Got it, I've recorded {'your' if name else 'the'} information. Is there anything else I can help with?"
+        )
+        result.update_global_data({
+            "customer_info": {
+                "name": name,
+                "email": email,
+                "phone": phone,
+                "company": company,
+                "notes": notes[:500],
+            }
+        })
+        return result

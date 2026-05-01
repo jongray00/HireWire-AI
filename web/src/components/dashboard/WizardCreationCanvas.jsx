@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Wand2, X } from "lucide-react";
+import { Wand2, X, PhoneOff } from "lucide-react";
 import { WIZARD_EVENTS, parseWizardEvent } from "@/lib/wizardEvents";
 
 /**
@@ -143,6 +143,17 @@ export default function WizardCreationCanvas() {
           <div className="flex items-center gap-3">
             {callState.connectionState === "connected" && (
               <span className="text-xs text-green-400">● Live</span>
+            )}
+            {isCallActive && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("wizard-end-call"))}
+                aria-label="Hang up wizard call"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                <PhoneOff className="w-3.5 h-3.5 text-white" />
+                <span className="text-xs font-medium text-white">Hang up</span>
+              </button>
             )}
             {!isCallActive && (
               <button

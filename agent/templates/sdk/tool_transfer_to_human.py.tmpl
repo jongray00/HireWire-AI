@@ -1,0 +1,30 @@
+    @AgentBase.tool(
+        name="transfer_to_human",
+        description="Transfer the call to a human representative at a real phone number",
+        parameters={
+            "type": "object",
+            "properties": {
+                "department": {"type": "string", "description": "Department to transfer to (e.g. sales, support, general)"},
+                "reason": {"type": "string", "description": "Brief reason for the transfer"},
+            },
+        },
+    )
+    def transfer_to_human(self, args, raw_data):
+        department = args.get("department", "general")
+        reason = args.get("reason", "Requested human assistance")
+        number = ${TRANSFER_NUMBER_REPR}
+
+        logger.info(f"Transfer requested to {number or 'NO NUMBER'} - {department}: {reason}")
+
+        if not number:
+            return SwaigFunctionResult(
+                "I'm sorry, there's no transfer number configured right now. "
+                "Let me take a message instead so someone can call you back."
+            )
+
+        result = SwaigFunctionResult(
+            f"I'll connect you with our {department} team now. Please hold.",
+            post_process=True,
+        )
+        result.connect(number, final=True, from_addr=${TRANSFER_FROM_REPR})
+        return result
