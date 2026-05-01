@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HireWire.AI — Design Options</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<style>
+  @font-face {
+    font-family: "Geist Mono";
+    src: url("https://cdn.jsdelivr.net/npm/geist@1.4.2/dist/fonts/geist-mono/GeistMono-Regular.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    background: #000;
+    color: #FAFAFA;
+    min-height: 100vh;
+    padding: 64px 48px;
+  }
+  .head {
+    max-width: 960px;
+    margin: 0 auto 56px;
+  }
+  .eyebrow {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #5C5C5C;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 56px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    margin: 0 0 8px;
+    line-height: 1;
+  }
+  .accent { color: #FF3B3B; }
+  .sub {
+    color: #8A8A8A;
+    font-size: 16px;
+    max-width: 560px;
+    margin: 12px 0 0;
+  }
+  .cards {
+    max-width: 960px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  a.card {
+    display: block;
+    border: 1px solid #1F1F1F;
+    background: #0A0A0A;
+    padding: 28px 24px 32px;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 160ms ease, transform 160ms ease;
+    position: relative;
+  }
+  a.card:hover {
+    border-color: #FF3B3B;
+    transform: translateY(-2px);
+  }
+  a.card .num {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px;
+    color: #FF3B3B;
+    letter-spacing: 0.18em;
+    margin-bottom: 24px;
+  }
+  a.card h2 {
+    font-size: 24px;
+    font-weight: 400;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  a.card p.tagline {
+    color: #8A8A8A;
+    font-size: 14px;
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+  a.card .swatches {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  a.card .sw {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #1F1F1F;
+  }
+  a.card ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px;
+    color: #5C5C5C;
+    letter-spacing: 0.04em;
+  }
+  a.card li {
+    padding: 6px 0;
+    border-top: 1px solid #1F1F1F;
+  }
+  a.card li:first-child { border-top: 0; }
+  .arrow {
+    position: absolute;
+    top: 28px; right: 24px;
+    color: #5C5C5C;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 14px;
+    transition: color 160ms ease;
+  }
+  a.card:hover .arrow { color: #FF3B3B; }
+  footer {
+    max-width: 960px;
+    margin: 64px auto 0;
+    padding-top: 24px;
+    border-top: 1px solid #1F1F1F;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: #5C5C5C;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <header class="head">
+    <div class="eyebrow">DESIGN MOCKUPS / 2026.05</div>
+    <h1>HireWire<span class="accent">.AI</span> — three directions</h1>
+    <p class="sub">Three layouts modeled on the LiveKit instrumentation aesthetic — pure black, hairline borders, mono micro-labels, lightweight large numbers, single-accent signal red. Click through to compare.</p>
+  </header>
+
+  <section class="cards">
+    <a class="card" href="./option-a.html">
+      <span class="arrow">→</span>
+      <div class="num">A / WIRE FRAME</div>
+      <h2>Faithful Port</h2>
+      <p class="tagline">Pure black canvas, dense data grid. The closest match to the reference — instrumentation aesthetic at full strength.</p>
+      <div class="swatches">
+        <div class="sw" style="background:#000"></div>
+        <div class="sw" style="background:#0A0A0A"></div>
+        <div class="sw" style="background:#1F1F1F"></div>
+        <div class="sw" style="background:#FF3B3B"></div>
+        <div class="sw" style="background:#5FB8B0"></div>
+      </div>
+      <ul>
+        <li>48PX ICON RAIL</li>
+        <li>STAT STRIP + SPARKLINES</li>
+        <li>HAIRLINE EMPLOYEE TABLE</li>
+        <li>CORAL = ALERT ONLY</li>
+      </ul>
+    </a>
+
+    <a class="card" href="./option-b.html">
+      <span class="arrow">→</span>
+      <div class="num">B / DAYLIGHT</div>
+      <h2>Wire Frame, Inverted</h2>
+      <p class="tagline">Same hairline DNA on white. For hiring-manager surfaces — feels like an enterprise console without losing the engineering edge.</p>
+      <div class="swatches">
+        <div class="sw" style="background:#FAFAFA;border-color:#E5E5E5"></div>
+        <div class="sw" style="background:#FFFFFF;border-color:#E5E5E5"></div>
+        <div class="sw" style="background:#E5E5E5"></div>
+        <div class="sw" style="background:#E11D2C"></div>
+        <div class="sw" style="background:#0F8A7E"></div>
+      </div>
+      <ul>
+        <li>SAME TYPE SYSTEM</li>
+        <li>PAIRS WITH OPTION A AS LIGHT MODE</li>
+        <li>HAIRLINE BORDERS @ #E5E5E5</li>
+        <li>RED DEEPENED FOR CONTRAST</li>
+      </ul>
+    </a>
+
+    <a class="card" href="./option-c.html">
+      <span class="arrow">→</span>
+      <div class="num">C / OPERATOR</div>
+      <h2>Operator's Console</h2>
+      <p class="tagline">Three-zone live cockpit — rail + active call floor + inspector pane. Built for the "watch your AI workforce in real time" pitch.</p>
+      <div class="swatches">
+        <div class="sw" style="background:#000"></div>
+        <div class="sw" style="background:#0A0A0A"></div>
+        <div class="sw" style="background:#1F1F1F"></div>
+        <div class="sw" style="background:#FF3B3B"></div>
+        <div class="sw" style="background:#5FB8B0"></div>
+      </div>
+      <ul>
+        <li>RAIL · LIVE FLOOR · INSPECTOR</li>
+        <li>WAVEFORMS PER ACTIVE CALL</li>
+        <li>ROLLING TRANSCRIPT TICKER</li>
+        <li>CORAL PULSE ON LIVE</li>
+      </ul>
+    </a>
+  </section>
+
+  <footer>HIREWIRE.AI / DASHBOARD MOCKUPS / SERVED FROM /MOCKUPS/</footer>
+</body>
+</html>

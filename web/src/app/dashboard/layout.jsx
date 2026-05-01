@@ -12,10 +12,7 @@ import {
   Home,
   Zap,
   Activity,
-  Sun,
-  Moon,
 } from "lucide-react";
-import { useThemeStore } from "@/app/stores/theme";
 import WizardBanner from "@/components/dashboard/WizardBanner";
 import WizardCreationCanvas from "@/components/dashboard/WizardCreationCanvas";
 
@@ -28,11 +25,26 @@ const navigation = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
+// Pretty-format a SignalWire space URL: "demo.signalwire.com" → "Demo.SignalWire.com".
+// SignalWire is rendered with its native camelCase; common TLDs stay lowercase.
+const TLDS = new Set(["com", "net", "io", "ai", "dev", "co", "app", "org"]);
+function formatSpaceUrl(url) {
+  if (!url) return "";
+  return url
+    .split(".")
+    .map((seg) => {
+      const lower = seg.toLowerCase();
+      if (lower === "signalwire") return "SignalWire";
+      if (TLDS.has(lower)) return lower;
+      return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase();
+    })
+    .join(".");
+}
+
 export default function DashboardLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-  const { theme, toggleTheme } = useThemeStore();
 
   const [session, setSession] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -123,41 +135,40 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-black">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/70 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-black border-r border-[#1F1F1F] transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Zap className="text-white" size={18} />
-            </div>
-            <span className="font-bold text-gray-900 dark:text-white text-lg">
-              Sally Sales
-            </span>
-          </div>
+        {/* Logo — height matches topbar (h-14) so the bottom border lines up across both columns */}
+        <div className="relative h-14 flex items-center justify-center px-3 border-b border-[#1F1F1F]">
+          <img
+            src="/hirewire-logo.png?v=2"
+            alt="HireWire"
+            className="h-9 w-auto object-contain select-none"
+            draggable="false"
+          />
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="lg:hidden absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-[#737373] hover:text-[#FAFAFA] transition-colors"
+            aria-label="Close sidebar"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-2">
+        <nav className="p-3 space-y-0.5">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -169,35 +180,36 @@ export default function DashboardLayout({ children }) {
                   navigate(item.href);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+                className={`relative w-full flex items-center space-x-3 px-4 py-2.5 transition-colors ${
                   isActive
-                    ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    ? "text-[#2553F4]"
+                    : "text-[#8A8A8A] hover:text-[#FAFAFA]"
                 }`}
               >
-                <Icon size={20} />
-                <span className="font-medium">{item.name}</span>
+                {isActive && (
+                  <span className="absolute left-0 top-2 bottom-2 w-[2px] bg-[#2553F4]" />
+                )}
+                <Icon size={18} />
+                <span className="text-sm tracking-tight">{item.name}</span>
               </button>
             );
           })}
         </nav>
 
         {/* User Section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Connected to
-            </div>
-            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[#1F1F1F]">
+          <div className="mb-3 px-2">
+            <div className="hw-micro mb-1.5">CONNECTED</div>
+            <div className="text-xs text-[#FAFAFA] hw-mono truncate" title={session?.credentials?.spaceUrl || "SignalWire"}>
               {session?.credentials?.spaceUrl || "SignalWire"}
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg transition-all"
+            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 border border-[#1F1F1F] text-[#A3A3A3] hover:text-[#E84B5B] hover:border-[#E84B5B]/40 transition-colors"
           >
-            <LogOut size={18} />
-            <span className="font-medium">Sign Out</span>
+            <LogOut size={16} />
+            <span className="hw-mono text-[10px] tracking-[0.16em] uppercase">Sign Out</span>
           </button>
         </div>
       </aside>
@@ -205,45 +217,39 @@ export default function DashboardLayout({ children }) {
       {/* Main Content */}
       <div className="lg:pl-64">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 lg:px-6">
+        <header className="sticky top-0 z-30 h-14 bg-black border-b border-[#1F1F1F] flex items-center justify-between px-4 lg:px-8">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="lg:hidden p-2 text-[#5C5C5C] hover:text-[#FAFAFA] transition-colors"
           >
-            <Menu size={24} />
+            <Menu size={22} />
           </button>
 
-          <div className="flex-1 lg:flex-none">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <div className="flex-1 lg:flex-none flex items-baseline gap-3">
+            <h1 className="text-lg font-normal text-[#FAFAFA] tracking-tight">
               {navigation.find((item) => pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href)))?.name || "Dashboard"}
             </h1>
           </div>
 
-          <div className="flex items-center space-x-4">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
-              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-
-            {/* User Avatar */}
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {session?.credentials?.spaceUrl?.charAt(0).toUpperCase() || "U"}
+          <div className="flex items-center space-x-3">
+            {/* Space name */}
+            {session?.credentials?.spaceUrl && (
+              <span
+                className="hw-mono text-sm text-[#FAFAFA] tracking-tight"
+                title={session.credentials.spaceUrl}
+              >
+                {formatSpaceUrl(session.credentials.spaceUrl)}
               </span>
-            </div>
+            )}
           </div>
         </header>
 
         {/* Backend offline banner */}
         {!backendOnline && (
-          <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-3 bg-red-900/20 border border-red-500/30 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <span className="text-sm text-red-300 font-medium">Agent backend offline</span>
+          <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-3 bg-[#0A0A0A] border-l-2 border-l-[#E84B5B] border-y border-r border-[#1F1F1F] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#E84B5B] animate-pulse" />
+              <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-[#E84B5B]">Agent backend offline</span>
             </div>
             <button
               type="button"
@@ -254,7 +260,7 @@ export default function DashboardLayout({ children }) {
                 } catch { setBackendOnline(false); }
               }}
               aria-label="Retry backend connection"
-              className="px-3 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 text-xs rounded-lg transition-colors"
+              className="hw-mono text-[10px] tracking-[0.16em] uppercase px-3 py-1 border border-[#E84B5B]/40 text-[#E84B5B] hover:bg-[#E84B5B] hover:text-white transition-colors"
             >
               Retry
             </button>

@@ -129,111 +129,128 @@ export default function DashboardPage() {
     },
   ];
 
+  const isFirstTime = !loading && stats.totalEmployees === 0;
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
-        <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-        <p className="text-blue-100">
-          Manage your AI voice agents and track their performance
-        </p>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Getting Started hero — shown prominently when no employees yet */}
+      {isFirstTime && (
+        <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] p-8 lg:p-10 overflow-hidden">
+          <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#2553F4]" />
+          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-2">
+            Get Started
+          </div>
+          <h1 className="text-3xl lg:text-4xl font-medium text-[#FAFAFA] tracking-tight mb-3">
+            Hire an AI employee
+          </h1>
+          <p className="text-[#A3A3A3] mb-6 max-w-2xl">
+            Build a voice agent in about a minute. Talk to the Setup Wizard and
+            it&apos;ll create the agent for you, or pick a pre-built template to
+            customize.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => navigate("/dashboard/employees?new=true")}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
+            >
+              <Plus size={18} />
+              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Employee</span>
+            </button>
+            <button
+              onClick={() => navigate("/dashboard/templates")}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-transparent border border-[#1F1F1F] hover:border-[#2553F4]/60 text-[#FAFAFA] transition-colors"
+            >
+              <FileText size={18} />
+              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Browse Templates</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Welcome panel — shown only after first employee is created */}
+      {!isFirstTime && (
+        <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] p-6">
+          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
+          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">
+            Dashboard
+          </div>
+          <h1 className="text-xl font-medium text-[#FAFAFA] tracking-tight">
+            Welcome back
+          </h1>
+          <p className="text-sm text-[#A3A3A3] mt-1">
+            Manage your AI voice agents and track their performance.
+          </p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 border border-[#1F1F1F] divide-x divide-[#1F1F1F]">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div key={i} className="bg-[#0A0A0A] p-6">
               <div className="animate-pulse">
-                <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg mb-4"></div>
-                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-16 mb-2"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+                <div className="h-3 bg-[#1F1F1F] w-20 mb-4"></div>
+                <div className="h-8 bg-[#1F1F1F] w-16"></div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="Employees"
-            value={stats.totalEmployees}
-            icon={Users}
-            color="blue"
-            trend={null}
-          />
-          <StatCard
-            title="Active Calls"
-            value={stats.activeCalls}
-            icon={Phone}
-            color="green"
-            trend={null}
-          />
-          <StatCard
-            title="Total Calls"
-            value={stats.totalCalls}
-            icon={Activity}
-            color="purple"
-            trend="+12%"
-          />
-          <StatCard
-            title="Avg Duration"
-            value={`${stats.avgDuration}s`}
-            icon={Clock}
-            color="orange"
-            trend="-5%"
-          />
+        <div className="grid grid-cols-2 lg:grid-cols-4 border border-[#1F1F1F] divide-x divide-[#1F1F1F] divide-y lg:divide-y-0 md:divide-y-0">
+          <StatCard title="Employees" value={stats.totalEmployees} icon={Users} />
+          <StatCard title="Active Calls" value={stats.activeCalls} icon={Phone} />
+          <StatCard title="Total Calls" value={stats.totalCalls} icon={Activity} />
+          <StatCard title="Avg Duration" value={`${stats.avgDuration}s`} icon={Clock} />
         </div>
       )}
 
       {/* Quick Actions */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        <h2 className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {quickActions.map((action) => (
-            <QuickActionCard key={action.title} {...action} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-[#1F1F1F] divide-x md:divide-x-0 md:divide-y-0 divide-[#1F1F1F]">
+          {quickActions.map((action, idx) => (
+            <QuickActionCard key={action.title} {...action} primary={idx === 0} />
           ))}
         </div>
       </div>
 
       {/* Recent Activity */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        <h2 className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3">
           Recent Activity
         </h2>
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+        <div className="bg-[#0A0A0A] border border-[#1F1F1F]">
           {recentActivity.length === 0 ? (
-            <div className="p-12 text-center">
-              <Activity className="mx-auto text-gray-400 dark:text-gray-600 mb-4" size={48} />
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No recent activity
+            <div className="p-10 text-center">
+              <Activity className="mx-auto text-[#404040] mb-4" size={40} />
+              <p className="text-sm text-[#A3A3A3] mb-5">
+                No recent activity yet
               </p>
               <button
                 onClick={() => navigate("/dashboard/employees?new=true")}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
               >
-                <Plus size={18} />
-                <span>Create Your First Employee</span>
+                <Plus size={16} />
+                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Employee</span>
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="divide-y divide-[#1F1F1F]">
               {recentActivity.map((item) => (
-                <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                <div key={item.id} className="p-4 hover:bg-[#111111] transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
-                        <Zap className="text-blue-600 dark:text-blue-400" size={16} />
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <Zap className="text-[#2553F4]" size={14} />
+                        <span className="text-sm font-medium text-[#FAFAFA] truncate">
                           {item.employee}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {item.message}
-                      </p>
+                      <p className="text-sm text-[#A3A3A3]">{item.message}</p>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="hw-mono text-[10px] text-[#737373] shrink-0">
                       {new Date(item.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
@@ -244,55 +261,19 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Getting Started Guide (if no employees) */}
-      {stats.totalEmployees === 0 && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-6">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Zap className="text-white" size={24} />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                Get Started with Sally Sales
-              </h3>
-              <p className="text-blue-800 dark:text-blue-200 mb-4">
-                Create your first AI voice agent in minutes. Choose from our templates or build your own from scratch.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => navigate("/dashboard/templates")}
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  <FileText size={18} />
-                  <span>Browse Templates</span>
-                  <ArrowRight size={16} />
-                </button>
-                <button
-                  onClick={() => navigate("/dashboard/employees?new=true")}
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg transition-colors"
-                >
-                  <Plus size={18} />
-                  <span>Create From Scratch</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Demo Tools — hidden behind a disclosure */}
       <details className="mt-8">
-        <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-300">
+        <summary className="hw-mono text-[10px] tracking-[0.16em] uppercase text-[#737373] cursor-pointer hover:text-[#A3A3A3]">
           Demo Tools
         </summary>
-        <div className="mt-2 flex gap-3">
+        <div className="mt-3 flex gap-3">
           <button
             onClick={async () => {
               if (!confirm('Clear all agents and call logs?')) return;
               await fetch('/api/demo/reset', { method: 'POST' });
               loadDashboardData();
             }}
-            className="px-4 py-2 bg-red-900/30 text-red-300 border border-red-500/30 rounded-lg text-sm hover:bg-red-900/50"
+            className="hw-mono text-[10px] tracking-[0.16em] uppercase px-3 py-2 border border-[#E84B5B]/40 text-[#E84B5B] hover:bg-[#E84B5B] hover:text-white transition-colors"
           >
             Reset Demo Data
           </button>
@@ -301,7 +282,7 @@ export default function DashboardPage() {
               await fetch('/api/demo/seed', { method: 'POST' });
               loadDashboardData();
             }}
-            className="px-4 py-2 bg-blue-900/30 text-blue-300 border border-blue-500/30 rounded-lg text-sm hover:bg-blue-900/50"
+            className="hw-mono text-[10px] tracking-[0.16em] uppercase px-3 py-2 border border-[#2553F4]/40 text-[#2553F4] hover:bg-[#2553F4] hover:text-white transition-colors"
           >
             Seed Example Data
           </button>
@@ -311,55 +292,39 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color, trend }) {
-  const colorClasses = {
-    blue: "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-    green: "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400",
-    purple: "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400",
-    orange: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
-  };
-
+function StatCard({ title, value, icon: Icon }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
-          <Icon size={24} />
-        </div>
-        {trend && (
-          <div className={`flex items-center space-x-1 text-sm ${trend.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-            <TrendingUp size={14} />
-            <span>{trend}</span>
-          </div>
-        )}
+    <div className="bg-[#0A0A0A] p-6">
+      <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3 flex items-center gap-2">
+        <Icon size={12} className="text-[#2553F4]" />
+        <span>{title}</span>
       </div>
-      <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+      <div className="text-3xl font-light text-[#FAFAFA] tracking-tight">
         {value}
       </div>
-      <div className="text-sm text-gray-500 dark:text-gray-400">{title}</div>
     </div>
   );
 }
 
-function QuickActionCard({ title, description, icon: Icon, color, action }) {
-  const colorClasses = {
-    blue: "from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800",
-    purple: "from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800",
-    green: "from-green-600 to-green-700 hover:from-green-700 hover:to-green-800",
-  };
-
+function QuickActionCard({ title, description, icon: Icon, action, primary }) {
   return (
     <button
       onClick={action}
-      className={`group bg-gradient-to-r ${colorClasses[color]} p-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all text-left`}
+      className={`group relative bg-[#0A0A0A] p-6 text-left transition-colors hover:bg-[#111111] ${
+        primary ? "" : ""
+      }`}
     >
-      <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-4">
-        <Icon className="text-white" size={24} />
+      {primary && (
+        <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
+      )}
+      <div className="w-10 h-10 border border-[#1F1F1F] group-hover:border-[#2553F4]/50 flex items-center justify-center mb-4 transition-colors">
+        <Icon className="text-[#2553F4]" size={18} />
       </div>
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-      <p className="text-sm text-white/90">{description}</p>
-      <div className="mt-4 flex items-center text-white group-hover:translate-x-1 transition-transform">
-        <span className="text-sm font-medium">Get started</span>
-        <ArrowRight size={16} className="ml-2" />
+      <h3 className="text-base font-medium text-[#FAFAFA] mb-1">{title}</h3>
+      <p className="text-sm text-[#A3A3A3]">{description}</p>
+      <div className="mt-4 flex items-center text-[#2553F4] group-hover:translate-x-1 transition-transform">
+        <span className="hw-mono text-[10px] tracking-[0.16em] uppercase font-semibold">Get started</span>
+        <ArrowRight size={14} className="ml-2" />
       </div>
     </button>
   );

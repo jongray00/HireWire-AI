@@ -125,7 +125,7 @@ export default function LoginPage() {
             <Zap className="text-white" size={32} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Sally Sales
+            HireWire.AI
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             AI-Powered Voice Agent Platform

@@ -20,9 +20,13 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
   const [error, setError] = useState(null);
   const [connectionState, setConnectionState] = useState("idle"); // idle | connecting | ringing | connected
   const [debugLog, setDebugLog] = useState([]);
+  // Set true when a call ends without ever firing call.joined — typically
+  // means SignalWire couldn't reach our SWML webhook (e.g. stale ngrok URL).
+  const [failedToConnect, setFailedToConnect] = useState(false);
   const videoRef = useRef(null);
   const clientRef = useRef(null);
   const sessionRef = useRef(null);
+  const joinedRef = useRef(false);
 
   // I2: Keep onEvent/onTranscript refs stable so listeners always call the latest callbacks.
   const onEventRef = useRef(onEvent);
@@ -63,6 +67,8 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
     setCalling(true);
     setError(null);
     setConnectionState("connecting");
+    setFailedToConnect(false);
+    joinedRef.current = false;
 
     try {
       const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -194,12 +200,20 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
 
       // 6. Session events
       session.on("call.joined", () => {
+        joinedRef.current = true;
+        setFailedToConnect(false);
         setConnected(true);
         setConnectionState("connected");
       });
 
       const cleanup = () => {
         if (sessionRef.current?.__pollInterval) clearInterval(sessionRef.current.__pollInterval);
+        // If the call ends without ever joining, surface a "failed to connect"
+        // signal — the most common cause is a stale app domain so SignalWire
+        // can't reach our SWML webhook and hangs up with NORMAL_CLEARING.
+        if (!joinedRef.current) {
+          setFailedToConnect(true);
+        }
         setConnected(false);
         setCalling(false);
         setConnectionState("idle");
@@ -275,6 +289,8 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
     sessionRef.current = null;
   }, []);
 
+  const clearFailedToConnect = useCallback(() => setFailedToConnect(false), []);
+
   return {
     startCall,
     endCall,
@@ -282,6 +298,8 @@ export function useWizardCall({ onEvent, onTranscript } = {}) {
     connected,
     connectionState,
     error,
+    failedToConnect,
+    clearFailedToConnect,
     videoRef,
     debugLog,
   };

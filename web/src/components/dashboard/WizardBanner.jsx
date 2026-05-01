@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Wand2, Phone, PhoneOff } from "lucide-react";
+import { Wand2, Phone, PhoneOff, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useWizardCall } from "@/app/hooks/useWizardCall";
+import { useDomainAutoSync } from "@/app/hooks/useDomainAutoSync";
 import { parseWizardEvent } from "@/lib/wizardEvents";
 
 /**
@@ -47,8 +48,64 @@ export default function WizardBanner({ onAgentCreated }) {
     window.dispatchEvent(new CustomEvent("wizard-transcript", { detail: line }));
   }, []);
 
-  const { startCall, endCall, calling, connected, connectionState, error, videoRef, debugLog = [] } =
-    useWizardCall({ onEvent: handleWizardEvent, onTranscript: handleTranscript });
+  const {
+    startCall,
+    endCall,
+    calling,
+    connected,
+    connectionState,
+    error,
+    failedToConnect,
+    clearFailedToConnect,
+    videoRef,
+    debugLog = [],
+  } = useWizardCall({ onEvent: handleWizardEvent, onTranscript: handleTranscript });
+
+  // Keep saved app_domain in lockstep with the URL we're loaded from. Stale
+  // domains (rotated ngrok URL) make SignalWire fetch SWML from a dead host
+  // and hang up with NORMAL_CLEARING the moment a wizard call dials.
+  const {
+    status: domainSyncStatus,
+    savedDomain,
+    currentDomain,
+    sync: syncDomain,
+    lastSyncedAt,
+  } = useDomainAutoSync();
+
+  // Briefly surface the proactive auto-sync result so the user sees it worked.
+  const [showSyncToast, setShowSyncToast] = useState(false);
+  useEffect(() => {
+    if (domainSyncStatus !== "synced" || !lastSyncedAt) return;
+    setShowSyncToast(true);
+    const t = setTimeout(() => setShowSyncToast(false), 5000);
+    return () => clearTimeout(t);
+  }, [domainSyncStatus, lastSyncedAt]);
+
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryError, setRecoveryError] = useState(null);
+
+  const handleSyncAndRetry = useCallback(async () => {
+    setRecovering(true);
+    setRecoveryError(null);
+    try {
+      const result = await syncDomain();
+      if (!result?.ok) {
+        setRecoveryError(
+          result?.error ||
+            (result?.reason === "localhost"
+              ? "Dashboard is running on localhost — open it via your public URL (e.g. ngrok) and try again."
+              : "Couldn't sync the application domain.")
+        );
+        return;
+      }
+      clearFailedToConnect();
+      await startCall();
+    } catch (e) {
+      setRecoveryError(e.message);
+    } finally {
+      setRecovering(false);
+    }
+  }, [syncDomain, clearFailedToConnect, startCall]);
 
   // Broadcast call-state changes so the canvas can derive its visibility.
   useEffect(() => {
@@ -103,59 +160,149 @@ export default function WizardBanner({ onAgentCreated }) {
     await endCall();
   }, [endCall]);
 
+  // Allow other components (e.g. WizardCreationCanvas) to request hangup.
+  useEffect(() => {
+    const onRequestEnd = () => { handleEndCall(); };
+    window.addEventListener("wizard-end-call", onRequestEnd);
+    return () => window.removeEventListener("wizard-end-call", onRequestEnd);
+  }, [handleEndCall]);
+
   const isActive = calling || connected;
 
-  // Idle CTA bar
-  if (!isActive && !error) {
-    return (
-      <div className="mx-4 lg:mx-6 mt-4 mb-0">
-        <button
-          type="button"
-          onClick={startCall}
-          aria-label="Start Setup Wizard call"
-          className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 hover:from-purple-600/20 hover:to-indigo-600/20 border border-purple-500/30 hover:border-purple-500/50 rounded-xl transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              <Wand2 className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-left">
-              <span className="font-medium text-purple-300 group-hover:text-purple-200">Setup Wizard</span>
-              <span className="text-gray-500 dark:text-gray-400 mx-2">—</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Build agents with your voice</span>
-            </div>
+  // Small reusable banners.
+  const SyncToast = showSyncToast ? (
+    <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-2 bg-[#0A0A0A] border-l-2 border-l-[#2553F4] border-y border-r border-[#1F1F1F] flex items-center gap-2">
+      <CheckCircle2 className="w-3.5 h-3.5 text-[#2553F4]" />
+      <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-[#2553F4]">
+        Webhooks synced — <span className="text-[#8A8A8A] normal-case tracking-normal">{currentDomain}</span>
+      </span>
+    </div>
+  ) : null;
+
+  const RecoveryPanel = (
+    <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-3 bg-[#0A0A0A] border-l-2 border-l-[#E84B5B] border-y border-r border-[#1F1F1F]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 border border-[#E84B5B]/40 flex items-center justify-center shrink-0">
+            <RefreshCw className="w-4 h-4 text-[#E84B5B]" />
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors">
-            <Phone className="w-3.5 h-3.5 text-white" />
-            <span className="text-sm font-medium text-white">Call Now</span>
+          <div className="min-w-0">
+            <p className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#E84B5B]">
+              Couldn&apos;t reach the agent
+            </p>
+            <p className="text-xs text-[#A3A3A3] mt-1">
+              The wizard call ended before connecting — usually this means
+              the SignalWire webhook URL is stale.
+            </p>
+            {savedDomain && currentDomain && savedDomain !== currentDomain && (
+              <p className="text-[10px] text-[#737373] mt-1 hw-mono break-all">
+                saved: {savedDomain} → current: {currentDomain}
+              </p>
+            )}
+            {recoveryError && (
+              <p className="text-xs text-[#E84B5B] mt-1">{recoveryError}</p>
+            )}
           </div>
-        </button>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              clearFailedToConnect();
+              setRecoveryError(null);
+            }}
+            className="hw-mono text-[10px] tracking-[0.16em] uppercase px-2 py-1 text-[#737373] hover:text-[#FAFAFA] transition-colors"
+          >
+            Dismiss
+          </button>
+          <button
+            type="button"
+            onClick={handleSyncAndRetry}
+            disabled={recovering}
+            aria-label="Sync application domain and retry call"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E84B5B] hover:bg-[#D63A4A] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-white ${recovering ? "animate-spin" : ""}`} />
+            <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-white whitespace-nowrap font-medium">
+              {recovering ? "Syncing" : "Sync & retry"}
+            </span>
+          </button>
+        </div>
       </div>
+    </div>
+  );
+
+  // Idle CTA bar
+  if (!isActive && !error && !failedToConnect) {
+    return (
+      <>
+        {SyncToast}
+        <div className="mx-4 lg:mx-6 mt-4 mb-0">
+          <button
+            type="button"
+            onClick={startCall}
+            aria-label="Start Setup Wizard call"
+            className="relative w-full flex items-center justify-between px-6 py-5 bg-[#0A0A0A] border border-[#1F1F1F] hover:border-[#2553F4]/60 hover:bg-[#0F1424] transition-colors group"
+          >
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#2553F4]" />
+            <div className="flex items-center gap-4 text-left">
+              <div className="w-11 h-11 border border-[#2553F4] flex items-center justify-center shrink-0">
+                <Wand2 className="w-5 h-5 text-[#2553F4]" />
+              </div>
+              <div>
+                <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] group-hover:text-[#A3A3A3] mb-1">
+                  Setup Wizard
+                </div>
+                <div className="text-base text-[#FAFAFA] font-medium">
+                  Build a new AI employee by voice
+                </div>
+                <div className="text-xs text-[#A3A3A3] mt-0.5">
+                  Talk to the wizard — it&apos;ll create the agent for you in about a minute.
+                </div>
+              </div>
+            </div>
+            <div className="relative shrink-0">
+              <span className="hw-pulse-ring" aria-hidden="true"></span>
+              <span className="hw-pulse-ring hw-pulse-ring-delayed" aria-hidden="true"></span>
+              <div className="relative flex items-center gap-2 px-5 py-2.5 bg-[#2553F4] group-hover:bg-[#1E46DC] transition-colors">
+                <Phone className="w-4 h-4 text-white" />
+                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase text-white font-semibold">Call Wizard</span>
+              </div>
+            </div>
+          </button>
+        </div>
+      </>
     );
   }
 
-  // Error state (call failed with no active session)
+  // Failed-to-connect state — webhook unreachable is the dominant cause; offer auto-sync + retry.
+  if (!isActive && failedToConnect) {
+    return RecoveryPanel;
+  }
+
+  // Generic error state (call failed for some other reason)
   if (!isActive && error) {
     return (
       <div className="mx-4 lg:mx-6 mt-4 mb-0">
-        <div className="flex items-center justify-between px-4 py-3 bg-red-900/20 border border-red-500/30 rounded-xl">
+        <div className="relative flex items-center justify-between px-4 py-3 bg-[#0A0A0A] border border-[#1F1F1F]">
+          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#E84B5B]" />
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-red-600/30 rounded-lg flex items-center justify-center">
-              <Wand2 className="w-4 h-4 text-red-300" />
+            <div className="w-8 h-8 border border-[#E84B5B]/40 flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-[#E84B5B]" />
             </div>
             <div>
-              <p className="text-sm font-medium text-red-300">Wizard call failed</p>
-              <p className="text-xs text-red-400">{error}</p>
+              <p className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#E84B5B]">Wizard call failed</p>
+              <p className="text-xs text-[#A3A3A3] mt-0.5">{error}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={startCall}
             aria-label="Retry Setup Wizard call"
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#2553F4] hover:bg-[#1E46DC] transition-colors"
           >
             <Phone className="w-3.5 h-3.5 text-white" />
-            <span className="text-sm font-medium text-white">Retry</span>
+            <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-white font-medium">Retry</span>
           </button>
         </div>
       </div>
@@ -165,45 +312,46 @@ export default function WizardBanner({ onAgentCreated }) {
   // Active banner or results
   return (
     <div className="mx-4 lg:mx-6 mt-4 mb-0">
-      <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 rounded-xl overflow-hidden">
+      <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] overflow-hidden">
+        <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
         {/* Banner header */}
         <div className="flex items-center gap-4 p-4">
           {/* Left: Audio/connection area */}
           <div className="flex items-center gap-3 shrink-0">
             <div
               ref={videoRef}
-              className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center"
+              className="w-12 h-12 border border-[#2553F4] flex items-center justify-center"
             >
-              <Wand2 className="w-5 h-5 text-white" />
+              <Wand2 className="w-5 h-5 text-[#2553F4]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-purple-300 text-sm">Setup Wizard</span>
+              <div className="flex items-center gap-3">
+                <span className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#2553F4]">Setup Wizard</span>
                 {isActive && (
-                  <span className="flex items-center gap-1 text-xs">
+                  <span className="flex items-center gap-1.5 hw-mono text-[10px] tracking-[0.14em] uppercase">
                     {connectionState === "connecting" && (
-                      <span className="text-yellow-400">Connecting...</span>
+                      <span className="text-[#FAFAFA]">Connecting…</span>
                     )}
                     {connectionState === "ringing" && (
-                      <span className="text-yellow-400">Ringing...</span>
+                      <span className="text-[#FAFAFA]">Ringing…</span>
                     )}
                     {connectionState === "connected" && (
                       <>
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-green-400">Live</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#2553F4] animate-pulse" />
+                        <span className="text-[#2553F4]">Live</span>
                       </>
                     )}
                   </span>
                 )}
               </div>
-              {error && <p className="text-xs text-red-400 mt-0.5">{error}</p>}
+              {error && <p className="text-xs text-[#2553F4] mt-1">{error}</p>}
             </div>
           </div>
 
           {/* Center: hint during active call */}
           <div className="flex-1 min-w-0">
             {isActive && (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-[#8A8A8A]">
                 Speak to the wizard to start building your agent…
               </p>
             )}
@@ -216,36 +364,36 @@ export default function WizardBanner({ onAgentCreated }) {
                 type="button"
                 onClick={handleEndCall}
                 aria-label="End wizard call"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/80 hover:bg-red-600 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E84B5B] hover:bg-[#D63A4A] transition-colors"
               >
                 <PhoneOff className="w-3.5 h-3.5 text-white" />
-                <span className="text-xs font-medium text-white">End</span>
+                <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-white font-medium">End</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Debug panel */}
-        <div className="border-t border-purple-500/20 px-4 py-2 text-xs text-gray-400">
+        <div className="border-t border-[#1F1F1F] px-4 py-2 text-xs text-[#5C5C5C]">
           <button
             type="button"
             onClick={() => setShowDebug((s) => !s)}
-            className="flex items-center gap-2 hover:text-gray-200 transition-colors"
+            className="flex items-center gap-2 hover:text-[#FAFAFA] transition-colors"
           >
-            <span className="font-mono">Debug</span>
-            <span className="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded">
+            <span className="hw-mono text-[10px] tracking-[0.16em] uppercase">Debug</span>
+            <span className="hw-mono text-[10px] px-1.5 py-0.5 border border-[#1F1F1F] text-[#8A8A8A]">
               mic: {String(micStatus)}
             </span>
-            <span className="text-[10px] text-gray-500">({debugLog.length} events)</span>
-            <span className="text-[10px] text-gray-500">{showDebug ? "▲" : "▼"}</span>
+            <span className="hw-mono text-[10px] text-[#5C5C5C]">({debugLog.length} events)</span>
+            <span className="text-[10px] text-[#5C5C5C]">{showDebug ? "▲" : "▼"}</span>
           </button>
           {showDebug && (
-            <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5 font-mono text-[10px] bg-black/30 rounded p-2">
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5 hw-mono text-[10px] bg-black border border-[#1F1F1F] p-2">
               {debugLog.slice().reverse().map((e, i) => (
                 <div key={`${e.t}-${i}`} className="flex gap-2">
-                  <span className="text-gray-500 shrink-0">{new Date(e.t).toLocaleTimeString()}</span>
-                  <span className="text-purple-300 shrink-0">{e.kind}</span>
-                  <span className="text-gray-300 break-all">{typeof e.detail === "object" ? JSON.stringify(e.detail) : String(e.detail)}</span>
+                  <span className="text-[#5C5C5C] shrink-0">{new Date(e.t).toLocaleTimeString()}</span>
+                  <span className="text-[#2553F4] shrink-0">{e.kind}</span>
+                  <span className="text-[#8A8A8A] break-all">{typeof e.detail === "object" ? JSON.stringify(e.detail) : String(e.detail)}</span>
                 </div>
               ))}
             </div>
