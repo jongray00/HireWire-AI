@@ -117,6 +117,16 @@ The application requires SignalWire credentials:
 - tailwindcss
 - vite
 
+## Data Storage
+
+### SQLite Database
+The web backend uses a single SQLite database (initialized in `web/src/lib/db.ts`).
+
+- **Default path (development)**: `web/data/sally_sales.db` (resolved as `<cwd>/data/sally_sales.db` when the dev server runs from `web/`).
+- **Override**: set the `DATABASE_PATH` environment variable to an absolute path. Both the Node web server (`web/src/lib/db.ts`) and the Python agent (`agent/main.py`) read this variable so they share the same DB file.
+- **Never committed to git**: the runtime DB files (`*.db`, `*.db-shm`, `*.db-wal`) and the `web/data/` directory are excluded via `.gitignore` and `web/.gitignore`. Do not check fixtures into these paths — every deploy would otherwise overwrite live data with the seeded copy.
+- **Production (VM deployment)**: set `DATABASE_PATH` in the deployment Secrets to a path on the VM's persistent disk that lives **outside** the build/deploy artifact tree (for example `/home/runner/sally-sales-data/sally_sales.db`). The directory is created automatically on first run by `getDb()`. Keeping the file outside `web/` ensures the build step (`cd web && npm run build`) cannot clobber it and that fresh deploys preserve user data.
+
 ## Deployment
 
 The project is configured for Replit deployment using the VM target:
