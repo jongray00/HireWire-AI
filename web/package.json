@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "react-router dev",
+    "build": "react-router build",
+    "start": "NODE_ENV=production node ./scripts/start-prod.mjs",
     "typecheck": "react-router typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -38,6 +40,7 @@
     "downshift": "^9.0.9",
     "isbot": "^5.1.27",
     "jose": "^6.2.2",
+    "lightningcss": "^1.32.0",
     "lodash-es": "^4.17.21",
     "lucide-react": "0.358.0",
     "motion": "^12.7.4",

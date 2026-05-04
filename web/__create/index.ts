@@ -304,7 +304,23 @@ app.all('/swml/:rest{.*}', async (c) => {
 
 app.route(API_BASENAME, api);
 
-export default await createHonoServer({
-  app,
-  defaultLogger: false,
-});
+// `createHonoServer` calls `serve()` immediately when NODE_ENV=production,
+// which would start an HTTP server *during the build* because @react-router/dev
+// imports this bundle to read its named exports for prerendering. We only want
+// the server to actually start when launched by the production `start` script,
+// so gate the call behind an explicit env var.
+//
+// Additionally, in production we avoid `createHonoServer`'s built-in
+// `serve()` call (which has been observed to hang inside this bundle's
+// top-level await graph) and instead expose the configured `app`. The
+// production entry script (`scripts/start-prod.mjs`) imports `app`, wires up
+// the React Router request handler, and binds the HTTP listener itself.
+let honoApp: unknown = app;
+if (process.env.HIREWIRE_START === '1') {
+  honoApp = await createHonoServer({
+    app,
+    defaultLogger: false,
+  });
+}
+export default honoApp;
+export { app };

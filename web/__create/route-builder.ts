@@ -9,7 +9,12 @@ const API_BASENAME = '/api';
 const api = new Hono();
 
 // Get current directory
-const __dirname = join(fileURLToPath(new URL('.', import.meta.url)), '../src/app/api');
+// In dev, resolve relative to this source file. In production (bundled), the
+// bundle lives in build/server/assets/, so fall back to a path relative to
+// process.cwd() (which is the `web/` directory when running `npm start`).
+const __dirname = import.meta.env?.PROD
+  ? join(process.cwd(), 'src/app/api')
+  : join(fileURLToPath(new URL('.', import.meta.url)), '../src/app/api');
 if (globalThis.fetch) {
   globalThis.fetch = updatedFetch;
 }
