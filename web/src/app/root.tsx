@@ -343,6 +343,22 @@ export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const pathname = location?.pathname;
   
+  // Pin dark mode. The class is hardcoded in JSX and set in an inline pre-
+  // hydration script in <head>, but anything that mutates documentElement's
+  // class (extensions, third-party widgets) must not be able to drop it.
+  useEffect(() => {
+    const de = document.documentElement;
+    const ensureDark = () => {
+      if (!de.classList.contains('dark')) de.classList.add('dark');
+      if (de.classList.contains('light')) de.classList.remove('light');
+      if (de.style.colorScheme !== 'dark') de.style.colorScheme = 'dark';
+    };
+    ensureDark();
+    const observer = new MutationObserver(ensureDark);
+    observer.observe(de, { attributes: true, attributeFilter: ['class', 'style'] });
+    return () => observer.disconnect();
+  }, []);
+
   // Initialize CSS and hydration recovery systems
   useEffect(() => {
     // Inject critical inline styles FIRST
@@ -411,6 +427,20 @@ export function Layout({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
               window.__DISABLE_SSR__ = true;
             }
+            // Force dark mode before hydration so Tailwind \`dark:\` variants
+            // always apply. Some inputs (e.g. login form) only set text color
+            // under the dark class, and inherit body's white --text-primary
+            // otherwise — without this guard, hydration timing can leave the
+            // page in a "no class" state with white text on near-white bg.
+            (function () {
+              try {
+                var de = document.documentElement;
+                de.classList.add('dark');
+                de.classList.remove('light');
+                de.setAttribute('data-theme', 'dark');
+                de.style.colorScheme = 'dark';
+              } catch (_) {}
+            })();
           `
         }} />
       </head>
