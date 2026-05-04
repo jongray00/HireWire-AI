@@ -68,11 +68,12 @@ agent-credentials.json
 **/agent-credentials.json
 **/credentials.json
 
-# SQLite databases
+# SQLite databases (runtime data — never commit)
 *.db
 *.db-shm
 *.db-wal
 /data/
+web/data/
 
 # Git worktrees
 .worktrees/
