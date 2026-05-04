@@ -1,0 +1,14 @@
+docs/
+.local/
+.claude/
+.agents/
+.superpowers/
+**/__pycache__/
+*.log
+**/agent-credentials.json
+web/data/*.db
+web/data/*.db-wal
+web/data/*.db-shm
+**/*.env
+**/*.env.*
+!**/*.env.example

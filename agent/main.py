@@ -1465,7 +1465,7 @@ async def create_employee(request: Request):
         agent_instances[employee_id] = agent
         _remount_employee_router(employee_id, agent)
 
-        logger.info(f"✅ Created virtual employee: {employee_config['name']} ({employee_id})")
+        logger.info(f"✅ Created virtual employee id={employee_id}")
         logger.info(f"   Route: /swml/{employee_id}")
 
         return {
@@ -1748,8 +1748,8 @@ if __name__ == "__main__":
     logger.info("🚀 Starting Virtual Employees Backend")
     logger.info("=" * 60)
     logger.info(f"📋 Multi-Agent System Initialized")
-    logger.info(f"🔐 Credentials: {agent_credentials['username']}:***")
-    logger.info(f"🌐 App Domain: {agent_credentials['app_domain']}")
+    logger.info("🔐 Credentials configured (redacted)")
+    logger.info(f"🌐 App Domain: {APP_DOMAIN or '(not set)'}")
     logger.info(f"🎯 Employees will be available at: /swml/{{employee_id}}")
     logger.info("=" * 60)
 

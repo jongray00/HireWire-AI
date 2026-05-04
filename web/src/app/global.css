@@ -21,6 +21,13 @@
  */
 
 @layer base {
+  /* Tell the UA to render native form controls / scrollbars in dark scheme.
+     Belt-and-suspenders alongside the inline script in root.tsx that sets
+     the `dark` class — guarantees consistent dark UI even before hydration. */
+  html {
+    color-scheme: dark;
+  }
+
   /* Default (dark) — HireWire palette: black canvas, blue brand, red alert */
   :root {
     --bg-primary: 0, 0, 0;          /* Pure black canvas */

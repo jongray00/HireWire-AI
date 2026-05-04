@@ -6,7 +6,8 @@
  */
 
 import Database from 'better-sqlite3';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 
 let _db: Database.Database | null = null;
@@ -14,6 +15,7 @@ let _db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (!_db) {
     const DB_PATH = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'sally_sales.db');
+    mkdirSync(dirname(DB_PATH), { recursive: true });
     _db = new Database(DB_PATH);
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');

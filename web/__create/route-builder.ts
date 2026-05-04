@@ -8,8 +8,14 @@ import updatedFetch from '../src/__create/fetch';
 const API_BASENAME = '/api';
 const api = new Hono();
 
-// Get current directory
-const __dirname = join(fileURLToPath(new URL('.', import.meta.url)), '../src/app/api');
+// In dev, load route source files directly so Vite can transform them.
+// In production, load the pre-bundled route files from `build/api/` (produced
+// by `scripts/build-api-routes.mjs`). The bundled outputs have all `@/` path
+// aliases and TypeScript helpers inlined, which plain Node `import()` cannot
+// resolve on its own.
+const __dirname = import.meta.env?.PROD
+  ? join(process.cwd(), 'build/api')
+  : join(fileURLToPath(new URL('.', import.meta.url)), '../src/app/api');
 if (globalThis.fetch) {
   globalThis.fetch = updatedFetch;
 }

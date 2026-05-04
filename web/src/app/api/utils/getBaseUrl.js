@@ -78,7 +78,7 @@ export function getSwmlWebhookUrl(request, path = '') {
     // Format: https://username:password@domain/api/swml or /api/swml/{employee_id}
     const authenticatedUrl = `${url.protocol}//${credentials.username}:${credentials.password}@${url.host}${fullPath}`;
 
-    console.log('[getSwmlWebhookUrl] Constructed authenticated webhook URL:', authenticatedUrl);
+    console.log('[getSwmlWebhookUrl] Constructed authenticated webhook URL for host:', url.host);
     return authenticatedUrl;
   }
 
