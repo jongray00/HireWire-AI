@@ -1,0 +1,7 @@
+docs/
+.local/
+.claude/
+.agents/
+.superpowers/
+**/__pycache__/
+*.log
