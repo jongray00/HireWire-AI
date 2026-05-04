@@ -4,15 +4,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   Users,
-  FileText,
   Phone,
   Plus,
   Activity,
   Clock,
-  TrendingUp,
   Zap,
-  ArrowRight,
 } from "lucide-react";
+import DashboardSplitHero from "@/components/dashboard/DashboardSplitHero";
+import { TEMPLATES } from "@/lib/templates";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -105,83 +104,12 @@ export default function DashboardPage() {
     }
   };
 
-  const quickActions = [
-    {
-      title: "Create Employee",
-      description: "Add a new AI voice agent",
-      icon: Plus,
-      color: "blue",
-      action: () => navigate("/dashboard/employees?new=true"),
-    },
-    {
-      title: "Browse Templates",
-      description: "Start with a pre-built agent",
-      icon: FileText,
-      color: "purple",
-      action: () => navigate("/dashboard/templates"),
-    },
-    {
-      title: "View Employees",
-      description: "Manage your AI agents",
-      icon: Users,
-      color: "green",
-      action: () => navigate("/dashboard/employees"),
-    },
-  ];
-
   const isFirstTime = !loading && stats.totalEmployees === 0;
+  const showHeroAtTop = loading || isFirstTime;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Getting Started hero — shown prominently when no employees yet */}
-      {isFirstTime && (
-        <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] p-8 lg:p-10 overflow-hidden">
-          <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#2553F4]" />
-          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-2">
-            Get Started
-          </div>
-          <h1 className="text-3xl lg:text-4xl font-medium text-[#FAFAFA] tracking-tight mb-3">
-            Hire an AI employee
-          </h1>
-          <p className="text-[#A3A3A3] mb-6 max-w-2xl">
-            Build a voice agent in about a minute. Talk to the Setup Wizard and
-            it&apos;ll create the agent for you, or pick a pre-built template to
-            customize.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => navigate("/dashboard/employees?new=true")}
-              className="inline-flex items-center space-x-2 px-6 py-3 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
-            >
-              <Plus size={18} />
-              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Employee</span>
-            </button>
-            <button
-              onClick={() => navigate("/dashboard/templates")}
-              className="inline-flex items-center space-x-2 px-6 py-3 bg-transparent border border-[#1F1F1F] hover:border-[#2553F4]/60 text-[#FAFAFA] transition-colors"
-            >
-              <FileText size={18} />
-              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Browse Templates</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Welcome panel — shown only after first employee is created */}
-      {!isFirstTime && (
-        <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] p-6">
-          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
-          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">
-            Dashboard
-          </div>
-          <h1 className="text-xl font-medium text-[#FAFAFA] tracking-tight">
-            Welcome back
-          </h1>
-          <p className="text-sm text-[#A3A3A3] mt-1">
-            Manage your AI voice agents and track their performance.
-          </p>
-        </div>
-      )}
+    <div className="max-w-7xl mx-auto space-y-6">
+      {showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} />}
 
       {/* Stats Grid */}
       {loading ? (
@@ -203,18 +131,6 @@ export default function DashboardPage() {
           <StatCard title="Avg Duration" value={`${stats.avgDuration}s`} icon={Clock} />
         </div>
       )}
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-[#1F1F1F] divide-x md:divide-x-0 md:divide-y-0 divide-[#1F1F1F]">
-          {quickActions.map((action, idx) => (
-            <QuickActionCard key={action.title} {...action} primary={idx === 0} />
-          ))}
-        </div>
-      </div>
 
       {/* Recent Activity */}
       <div>
@@ -288,6 +204,8 @@ export default function DashboardPage() {
           </button>
         </div>
       </details>
+
+      {!showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} />}
     </div>
   );
 }
@@ -306,26 +224,3 @@ function StatCard({ title, value, icon: Icon }) {
   );
 }
 
-function QuickActionCard({ title, description, icon: Icon, action, primary }) {
-  return (
-    <button
-      onClick={action}
-      className={`group relative bg-[#0A0A0A] p-6 text-left transition-colors hover:bg-[#111111] ${
-        primary ? "" : ""
-      }`}
-    >
-      {primary && (
-        <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
-      )}
-      <div className="w-10 h-10 border border-[#1F1F1F] group-hover:border-[#2553F4]/50 flex items-center justify-center mb-4 transition-colors">
-        <Icon className="text-[#2553F4]" size={18} />
-      </div>
-      <h3 className="text-base font-medium text-[#FAFAFA] mb-1">{title}</h3>
-      <p className="text-sm text-[#A3A3A3]">{description}</p>
-      <div className="mt-4 flex items-center text-[#2553F4] group-hover:translate-x-1 transition-transform">
-        <span className="hw-mono text-[10px] tracking-[0.16em] uppercase font-semibold">Get started</span>
-        <ArrowRight size={14} className="ml-2" />
-      </div>
-    </button>
-  );
-}

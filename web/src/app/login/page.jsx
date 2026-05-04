@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { LogIn, Loader, AlertCircle, Zap, Eye, EyeOff } from "lucide-react";
+import { LogIn, Loader, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -117,32 +117,42 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <Zap className="text-white" size={32} />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img
+              src="/hirewire-logo.png?v=2"
+              alt="HireWire"
+              className="h-12 w-auto object-contain select-none"
+              draggable="false"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3">
             HireWire.AI
+          </div>
+          <h1 className="text-3xl font-medium text-[#FAFAFA] tracking-tight mb-2">
+            Sign in to your workspace
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-[#A3A3A3] text-sm">
             AI-Powered Voice Agent Platform
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-            Sign in to your account
-          </h2>
+        <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] p-8">
+          <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#2553F4]" />
+
+          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-6">
+            Sign In
+          </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
-              <AlertCircle className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" size={20} />
+            <div className="mb-6 p-4 bg-[#0A0A0A] border border-[#E84B5B] flex items-start space-x-3">
+              <AlertCircle className="text-[#E84B5B] flex-shrink-0 mt-0.5" size={20} />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                <p className="text-sm font-medium text-[#E84B5B]">
                   {error}
                 </p>
               </div>
@@ -154,7 +164,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="spaceUrl"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                className="block text-sm font-medium text-[#A3A3A3] mb-2"
               >
                 Space URL
               </label>
@@ -165,7 +175,7 @@ export default function LoginPage() {
                 value={credentials.spaceUrl}
                 onChange={handleInputChange}
                 placeholder="demo.signalwire.com"
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white transition-all"
+                className="w-full px-4 py-3 bg-[#0A0A0A] border border-[#1F1F1F] text-[#FAFAFA] placeholder:text-[#737373] focus:outline-none focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                 required
               />
             </div>
@@ -174,7 +184,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="projectId"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                className="block text-sm font-medium text-[#A3A3A3] mb-2"
               >
                 Project ID
               </label>
@@ -185,7 +195,7 @@ export default function LoginPage() {
                 value={credentials.projectId}
                 onChange={handleInputChange}
                 placeholder="5d30e1ba-32c2-..."
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white transition-all"
+                className="w-full px-4 py-3 bg-[#0A0A0A] border border-[#1F1F1F] text-[#FAFAFA] placeholder:text-[#737373] focus:outline-none focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                 required
               />
             </div>
@@ -194,7 +204,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="apiToken"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                className="block text-sm font-medium text-[#A3A3A3] mb-2"
               >
                 API Token
               </label>
@@ -206,13 +216,13 @@ export default function LoginPage() {
                   value={credentials.apiToken}
                   onChange={handleInputChange}
                   placeholder="PTe6d2153a3f9aa..."
-                  className="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-[#0A0A0A] border border-[#1F1F1F] text-[#FAFAFA] placeholder:text-[#737373] focus:outline-none focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowToken(!showToken)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-[#737373] hover:text-[#FAFAFA] transition-colors"
                 >
                   {showToken ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -226,11 +236,11 @@ export default function LoginPage() {
                 id="rememberMe"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                className="w-4 h-4 accent-[#2553F4] bg-[#0A0A0A] border border-[#1F1F1F] focus:ring-2 focus:ring-[#2553F4]"
               />
               <label
                 htmlFor="rememberMe"
-                className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                className="ml-2 text-sm font-medium text-[#A3A3A3]"
               >
                 Remember my credentials
               </label>
@@ -240,17 +250,21 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+              className="w-full py-3 px-6 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
               {isLoading ? (
                 <>
-                  <Loader className="animate-spin" size={20} />
-                  <span>Connecting...</span>
+                  <Loader className="animate-spin" size={18} />
+                  <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">
+                    Connecting
+                  </span>
                 </>
               ) : (
                 <>
-                  <LogIn size={20} />
-                  <span>Sign In</span>
+                  <LogIn size={18} />
+                  <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">
+                    Sign In
+                  </span>
                 </>
               )}
             </button>
@@ -258,13 +272,13 @@ export default function LoginPage() {
 
           {/* Help Text */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-[#A3A3A3]">
               Don't have a SignalWire account?{" "}
               <a
                 href="https://signalwire.com/signup"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                className="text-[#2553F4] hover:underline font-medium"
               >
                 Sign up free
               </a>
@@ -274,8 +288,8 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Powered by SignalWire • Built with ❤️
+          <p className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373]">
+            Powered by SignalWire
           </p>
         </div>
       </div>

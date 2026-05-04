@@ -60,12 +60,12 @@ function KpiCards({ logs }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {cards.map((c) => (
-        <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+        <div key={c.label} className="bg-[#0A0A0A] border border-[#1F1F1F] p-4">
           <div className="flex items-center gap-2 mb-1">
             <c.icon size={16} className={c.color} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{c.label}</span>
+            <span className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373]">{c.label}</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{c.value}</p>
+          <p className="text-xl lg:text-2xl font-medium text-[#FAFAFA] tracking-tight">{c.value}</p>
         </div>
       ))}
     </div>
@@ -142,7 +142,7 @@ export default function CallLogsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-2 border-[#2553F4] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -152,18 +152,18 @@ export default function CallLogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Call Logs</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <h1 className="text-2xl lg:text-3xl font-medium text-[#FAFAFA] tracking-tight">Call Logs</h1>
+          <p className="text-[#A3A3A3] mt-1">
             AI-generated summaries and analytics from completed calls
           </p>
         </div>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-50"
+          className="inline-flex items-center space-x-2 px-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] hover:bg-[#1A1A1A] text-[#A3A3A3] transition-colors disabled:opacity-50"
         >
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-          <span>Refresh</span>
+          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Refresh</span>
         </button>
       </div>
 
@@ -176,10 +176,10 @@ export default function CallLogsPage() {
             key={f}
             type="button"
             onClick={() => setTypeFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            className={`px-3 py-1.5 text-sm transition-colors ${
               typeFilter === f
-                ? "bg-purple-600 text-white"
-                : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                ? "bg-[#2553F4] text-white"
+                : "bg-[#0F0F0F] border border-[#1F1F1F] text-[#A3A3A3] hover:bg-[#1A1A1A]"
             }`}
           >
             {f === "all" ? "All" : f === "employees" ? "Employees" : "🧙 Wizard"}
@@ -188,22 +188,22 @@ export default function CallLogsPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" size={18} />
             <input
               type="text"
               placeholder="Search summaries, topics, intents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-[#1F1F1F] rounded-md focus:ring-2 focus:ring-[#2553F4] focus:border-transparent bg-[#0F0F0F] text-[#FAFAFA] text-sm"
             />
           </div>
           <select
             value={employeeFilter}
             onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
+            className="px-3 py-2 border border-[#1F1F1F] rounded-md bg-[#0F0F0F] text-[#FAFAFA] text-sm"
           >
             <option value="">All Employees</option>
             {employeeNames.map((name) => (
@@ -213,7 +213,7 @@ export default function CallLogsPage() {
           <select
             value={sentimentFilter}
             onChange={(e) => setSentimentFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
+            className="px-3 py-2 border border-[#1F1F1F] rounded-md bg-[#0F0F0F] text-[#FAFAFA] text-sm"
           >
             <option value="">All Sentiments</option>
             <option value="positive">Positive</option>
@@ -223,7 +223,7 @@ export default function CallLogsPage() {
           {(searchQuery || employeeFilter || sentimentFilter) && (
             <button
               onClick={() => { setSearchQuery(""); setEmployeeFilter(""); setSentimentFilter(""); }}
-              className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              className="inline-flex items-center gap-1 px-3 py-2 text-sm text-[#737373] hover:text-[#FAFAFA]"
             >
               <X size={14} /> Clear
             </button>
@@ -233,12 +233,12 @@ export default function CallLogsPage() {
 
       {/* Call Logs Table */}
       {filteredLogs.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
-          <Activity className="mx-auto text-gray-400 dark:text-gray-600 mb-4" size={48} />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-12 text-center">
+          <Activity className="mx-auto text-[#737373] mb-4" size={48} />
+          <h3 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-2">
             {logs.length === 0 ? "No call logs yet" : "No matching calls"}
           </h3>
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-[#A3A3A3]">
             {logs.length === 0
               ? "Call logs will appear here after your virtual employees handle calls. The post-prompt AI will automatically generate summaries."
               : "Try adjusting your search or filters."}
@@ -249,40 +249,40 @@ export default function CallLogsPage() {
           {filteredLogs.map((log) => {
             const isExpanded = expandedId === log.id;
             return (
-              <div key={log.id} className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div key={log.id} className="bg-[#0A0A0A] border border-[#1F1F1F] overflow-hidden">
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-[#0F0F0F] transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       {isWizardLog(log) ? (
-                        <span className="px-2 py-0.5 bg-purple-600/20 border border-purple-500/40 rounded-full text-xs text-purple-300">
+                        <span className="px-2 py-0.5 bg-[#2553F4]/15 border border-[#2553F4]/40 rounded-full text-xs text-[#5478F8]">
                           🧙 Wizard Session
                         </span>
                       ) : (
-                        <span className="font-medium text-gray-900 dark:text-white">{log.employeeName}</span>
+                        <span className="font-medium text-[#FAFAFA]">{log.employeeName}</span>
                       )}
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{log.employeeRole}</span>
+                      <span className="text-xs text-[#737373]">{log.employeeRole}</span>
                       <PerformanceRatingBadge avgLatencyMs={log.avgLatencyMs} />
                       {log.builtAgentId && (
                         <a
                           href={`/dashboard/employees/${log.builtAgentId}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-green-400 hover:text-green-300"
+                          className="text-xs text-[#5478F8] hover:text-[#7892FA]"
                         >
                           → Built: {logs.find((l) => l.employeeId === log.builtAgentId)?.employeeName || log.builtAgentId}
                         </a>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">{log.summary || "—"}</p>
+                    <p className="text-sm text-[#A3A3A3] line-clamp-1">{log.summary || "—"}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDate(log.timestamp)}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDuration(log.durationSec)}</span>
+                    <span className="text-xs text-[#737373] whitespace-nowrap">{formatDate(log.timestamp)}</span>
+                    <span className="text-xs text-[#737373] whitespace-nowrap">{formatDuration(log.durationSec)}</span>
                     <SentimentBadge sentiment={log.sentiment} />
                     <OutcomeBadge outcome={log.outcome} />
-                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                    {isExpanded ? <ChevronUp size={16} className="text-[#737373]" /> : <ChevronDown size={16} className="text-[#737373]" />}
                   </div>
                 </button>
                 {isExpanded && (

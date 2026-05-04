@@ -27,11 +27,11 @@ const RESOURCE_TYPES = [
 
 // Type colors for badges
 const TYPE_COLORS = {
-  swml_webhook: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-  ai_agent: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-  conference_room: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-  sip_endpoint: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-  subscriber: "bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300",
+  swml_webhook: "bg-[#0A1530] border border-[#5478F8]/40 text-[#7892FA]",
+  ai_agent: "bg-[#16111F] border border-[#7B5BD9]/30 text-[#9B82E6]",
+  conference_room: "bg-[#0F1424] border border-[#2553F4]/40 text-[#5478F8]",
+  sip_endpoint: "bg-[#1A130E] border border-[#E07A4B]/40 text-[#E07A4B]",
+  subscriber: "bg-[#0F0F0F] border border-[#1F1F1F] text-[#A3A3A3]",
 };
 
 export default function ResourcesPage() {
@@ -113,8 +113,8 @@ export default function ResourcesPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading resources...</p>
+          <Loader2 className="w-12 h-12 text-[#2553F4] animate-spin mx-auto mb-4" />
+          <p className="text-[#A3A3A3]">Loading resources...</p>
         </div>
       </div>
     );
@@ -125,30 +125,30 @@ export default function ResourcesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl lg:text-3xl font-medium text-[#FAFAFA] tracking-tight">
             Call Fabric Resources
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-[#A3A3A3] mt-1">
             Dial and manage your SignalWire resources
           </p>
         </div>
         <button
           onClick={() => loadResources()}
           disabled={refreshing}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-lg disabled:opacity-50"
+          className="inline-flex items-center space-x-2 px-4 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white rounded-md transition-colors disabled:opacity-50"
         >
           <RefreshCw size={20} className={refreshing ? "animate-spin" : ""} />
-          <span>Refresh</span>
+          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Refresh</span>
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Search */}
           <div className="relative">
             <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#737373]"
               size={20}
             />
             <input
@@ -156,20 +156,20 @@ export default function ResourcesPage() {
               placeholder="Search resources..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="w-full pl-10 pr-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md focus:ring-2 focus:ring-[#2553F4] focus:border-transparent text-[#FAFAFA]"
             />
           </div>
 
           {/* Type Filter */}
           <div className="relative">
             <Filter
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#737373]"
               size={20}
             />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white appearance-none"
+              className="w-full pl-10 pr-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md focus:ring-2 focus:ring-[#2553F4] focus:border-transparent text-[#FAFAFA] appearance-none"
             >
               {RESOURCE_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -181,20 +181,20 @@ export default function ResourcesPage() {
         </div>
 
         {/* Results count */}
-        <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+        <div className="mt-3 text-sm text-[#A3A3A3]">
           Showing {filteredResources.length} of {resources.length} resources
         </div>
       </div>
 
       {/* Resources List */}
       {filteredResources.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12">
+        <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-12">
           <div className="text-center">
-            <Phone className="mx-auto text-gray-400 dark:text-gray-600 mb-4" size={64} />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <Phone className="mx-auto text-[#737373] mb-4" size={64} />
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-2">
               {searchQuery || typeFilter ? "No resources found" : "No resources yet"}
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-[#A3A3A3] mb-6">
               {searchQuery || typeFilter
                 ? "Try adjusting your search or filter"
                 : "Create resources to get started"}
@@ -279,43 +279,43 @@ function ResourceCard({ resource, onUpdate }) {
   const typeColor = TYPE_COLORS[resource.type] || TYPE_COLORS.subscriber;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-shadow">
+    <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6 transition-colors">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${typeColor} mb-2`}>
             {resource.type.replace(/_/g, " ")}
           </span>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          <h3 className="text-base font-medium text-[#FAFAFA] mb-1">
             {resource.display_name || resource.name || "Unnamed Resource"}
           </h3>
         </div>
       </div>
 
       {/* Address */}
-      <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+      <div className="mb-4 p-3 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md">
+        <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">
           Call Address
         </div>
-        <code className="text-sm text-gray-900 dark:text-white font-mono">
+        <code className="text-sm text-[#FAFAFA] font-mono">
           {resource.publicAddress}
         </code>
       </div>
 
       {/* Webhook URL for SWML webhooks */}
       {resource.type === "swml_webhook" && resource.webhookUrl && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+        <div className="mb-4 p-3 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md">
+          <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">
             Webhook URL
           </div>
           <div className="flex items-center space-x-2">
-            <code className="text-xs text-gray-900 dark:text-white font-mono truncate flex-1">
+            <code className="text-xs text-[#FAFAFA] font-mono truncate flex-1">
               {resource.webhookUrl}
             </code>
             <a
               href={resource.webhookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+              className="text-[#5478F8] hover:text-[#7892FA]"
             >
               <ExternalLink size={14} />
             </a>
@@ -328,17 +328,17 @@ function ResourceCard({ resource, onUpdate }) {
         <button
           onClick={handleCall}
           disabled={calling}
-          className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+          className="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white rounded-md transition-colors disabled:opacity-50"
         >
           {calling ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              <span>Calling...</span>
+              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Calling...</span>
             </>
           ) : (
             <>
               <Video size={16} />
-              <span>Call</span>
+              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Call</span>
             </>
           )}
         </button>
@@ -347,7 +347,7 @@ function ResourceCard({ resource, onUpdate }) {
           <button
             onClick={handleUpdateWebhook}
             disabled={updating}
-            className="inline-flex items-center justify-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            className="inline-flex items-center justify-center px-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] hover:bg-[#1A1A1A] text-[#A3A3A3] rounded-md transition-colors disabled:opacity-50"
             title="Update webhook URL"
           >
             {updating ? (
@@ -360,7 +360,7 @@ function ResourceCard({ resource, onUpdate }) {
       </div>
 
       {/* Metadata */}
-      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+      <div className="mt-4 pt-4 border-t border-[#1F1F1F] text-xs text-[#737373]">
         <div>ID: {resource.id}</div>
         {resource.created_at && (
           <div className="mt-1">

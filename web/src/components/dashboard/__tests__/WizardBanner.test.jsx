@@ -83,4 +83,49 @@ describe("WizardBanner", () => {
     // Sarah's name should NOT appear in the banner — canvas renders it
     expect(screen.queryByText("Sarah")).toBeNull();
   });
+
+  it("variant='inline' drops outer mx/mt margin classes", () => {
+    const { container } = render(<WizardBanner variant="inline" />);
+    const root = container.firstChild;
+    expect(root.className || "").not.toMatch(/\bmx-4\b/);
+    expect(root.className || "").not.toMatch(/\bmt-4\b/);
+  });
+
+  it("variant defaults to 'global' (preserves existing margin classes)", () => {
+    const { container } = render(<WizardBanner />);
+    const root = container.firstChild;
+    expect(root.className || "").toMatch(/\bmx-4\b/);
+  });
+
+  it("variant='button-only' renders just the Call Wizard pill (no card chrome)", () => {
+    render(<WizardBanner variant="button-only" />);
+    // CTA still present
+    expect(screen.getByRole("button", { name: /start setup wizard call/i })).toBeInTheDocument();
+    // The bordered idle card chrome's mono label "SETUP WIZARD" should NOT render
+    expect(screen.queryByText(/setup wizard/i)).toBeNull();
+    // The headline should NOT render
+    expect(screen.queryByText(/build a new ai employee/i)).toBeNull();
+  });
+
+  it("variant='button-only' renders compact connecting indicator while calling", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnectionState = "connecting";
+    render(<WizardBanner variant="button-only" />);
+    // Compact status label is visible immediately (not the big card)
+    expect(screen.getByText("Connecting")).toBeDefined();
+    // End-call button is wired up
+    expect(screen.getByRole("button", { name: /end wizard call/i })).toBeInTheDocument();
+    // The big bordered card chrome should NOT render in button-only mode —
+    // the full "Speak to the wizard…" hint belongs to the global active card.
+    expect(screen.queryByText(/Speak to the wizard/i)).toBeNull();
+  });
+
+  it("variant='button-only' shows Live status when connected", () => {
+    window.__testWizardCalling = true;
+    window.__testWizardConnected = true;
+    window.__testWizardConnectionState = "connected";
+    render(<WizardBanner variant="button-only" />);
+    expect(screen.getByText("Live")).toBeDefined();
+    expect(screen.getByRole("button", { name: /end wizard call/i })).toBeInTheDocument();
+  });
 });

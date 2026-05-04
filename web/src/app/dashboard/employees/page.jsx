@@ -745,7 +745,7 @@ export default function EmployeesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-2 border-[#2553F4] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -755,19 +755,19 @@ export default function EmployeesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl lg:text-3xl font-medium text-[#FAFAFA] tracking-tight">
             Virtual Employees
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-[#A3A3A3] mt-1">
             AI voice agents powered by SignalWire
           </p>
         </div>
         <button
           onClick={() => navigate("/dashboard/templates")}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-lg"
+          className="inline-flex items-center space-x-2 px-4 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
         >
           <Plus size={20} />
-          <span>Create Virtual Employee</span>
+          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Virtual Employee</span>
         </button>
       </div>
 
@@ -780,10 +780,10 @@ export default function EmployeesPage() {
       />
 
       {/* Search Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-4">
         <div className="relative">
           <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#737373]"
             size={20}
           />
           <input
@@ -791,23 +791,23 @@ export default function EmployeesPage() {
             placeholder="Search by name or role..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-[#1F1F1F] rounded-md focus:ring-2 focus:ring-[#2553F4] focus:border-transparent bg-[#0F0F0F] text-[#FAFAFA]"
           />
         </div>
       </div>
 
       {/* Employees List */}
       {filteredEmployees.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12">
+        <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-12">
           <div className="text-center">
             <Users
-              className="mx-auto text-gray-400 dark:text-gray-600 mb-4"
+              className="mx-auto text-[#737373] mb-4"
               size={64}
             />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-2">
               {searchQuery ? "No employees found" : "No virtual employees yet"}
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-[#A3A3A3] mb-6">
               {searchQuery
                 ? "Try adjusting your search query"
                 : "Create your first AI voice agent to get started"}
@@ -815,10 +815,10 @@ export default function EmployeesPage() {
             {!searchQuery && (
               <button
                 onClick={() => navigate("/dashboard/templates")}
-                className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="inline-flex items-center space-x-2 px-6 py-3 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
               >
                 <Plus size={20} />
-                <span>Create Your First Virtual Employee</span>
+                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Virtual Employee</span>
               </button>
             )}
           </div>
@@ -887,12 +887,12 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg border p-6 hover:shadow-xl transition-shadow ${
+      className={`bg-[#0A0A0A] border p-6 transition-colors ${
         stale && !fixSuccess
-          ? "border-amber-300 dark:border-amber-600"
+          ? "border-amber-600"
           : fixSuccess
-          ? "border-green-300 dark:border-green-600"
-          : "border-gray-200 dark:border-gray-700"
+          ? "border-green-600"
+          : "border-[#1F1F1F]"
       } ${isNew ? "animate-pulse ring-2 ring-purple-500 ring-opacity-50" : ""}`}
     >
       {/* Header row */}
@@ -931,7 +931,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
           <button
             onClick={handleCall}
             disabled={calling || !employee.callFabricAddress}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 text-[#A3A3A3] hover:text-green-400 hover:bg-green-900/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title={
               employee.callFabricAddress
                 ? "Video call this agent"
@@ -946,13 +946,13 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
           </button>
           <button
             onClick={onEdit}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+            className="p-2 text-[#A3A3A3] hover:text-[#5478F8] hover:bg-[#2553F4]/15 rounded-md transition-colors"
           >
             <Edit2 size={16} />
           </button>
           <button
             onClick={onDelete}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            className="p-2 text-[#A3A3A3] hover:text-red-400 hover:bg-red-900/30 rounded-md transition-colors"
           >
             <Trash2 size={16} />
           </button>
@@ -960,10 +960,10 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+      <h3 className="text-base font-medium text-[#FAFAFA] mb-1">
         {employee.name || "Unnamed Employee"}
       </h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <p className="text-sm text-[#737373] mb-4">
         {employee.role || "No role specified"}
       </p>
 
@@ -1042,14 +1042,14 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
 
       {/* Call Fabric Address */}
       {employee.callFabricAddress && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <div className="mb-4 p-3 bg-[#0F0F0F] border border-[#1F1F1F]">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373]">
               Call Address
             </span>
             <button
               onClick={handleCopyAddress}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center space-x-1"
+              className="text-xs text-[#5478F8] hover:text-[#7892FA] flex items-center space-x-1"
             >
               {copied ? (
                 <>
@@ -1064,7 +1064,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
               )}
             </button>
           </div>
-          <code className="text-sm text-gray-900 dark:text-white font-mono">
+          <code className="text-sm text-[#FAFAFA] font-mono">
             {employee.callFabricAddress}
           </code>
         </div>
@@ -1100,7 +1100,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
                 <span className="text-xs font-medium text-blue-800 dark:text-blue-300">
                   Assign Phone Number
                 </span>
-                <button onClick={onToggleAssign} className="text-xs text-gray-500 hover:text-gray-700">
+                <button onClick={onToggleAssign} className="text-xs text-[#737373] hover:text-[#FAFAFA]">
                   Cancel
                 </button>
               </div>
@@ -1123,7 +1123,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
                     </button>
                   ))}
                 {phoneNumbers.filter((n) => !n.assignedTo).length === 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 py-1">
+                  <p className="text-xs text-[#737373] py-1">
                     All numbers are assigned
                   </p>
                 )}
@@ -1143,14 +1143,14 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
 
       {/* Voice & Language */}
       <div className="space-y-2 text-sm">
-        <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+        <div className="flex items-center space-x-2 text-[#A3A3A3]">
           <Mic size={14} />
           <span>
             {VOICE_OPTIONS.find((v) => v.value === employee.voice)?.label ||
               employee.voice}
           </span>
         </div>
-        <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+        <div className="flex items-center space-x-2 text-[#A3A3A3]">
           <Globe size={14} />
           <span>
             {LANGUAGE_OPTIONS.find((l) => l.value === employee.language)
@@ -1160,7 +1160,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
       </div>
 
       {employee.greeting && (
-        <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+        <p className="mt-4 text-sm text-[#A3A3A3] line-clamp-2">
           "{employee.greeting}"
         </p>
       )}
@@ -1273,18 +1273,18 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F]">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-[#1F1F1F]">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <button
                 onClick={onCancel}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 text-[#A3A3A3] hover:text-[#FAFAFA] hover:bg-[#0F0F0F] rounded-md transition-colors"
               >
                 <ArrowLeft size={20} />
               </button>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-xl lg:text-2xl font-medium text-[#FAFAFA] tracking-tight">
                 {employee ? "Edit Virtual Employee" : "Create Virtual Employee"}
               </h2>
             </div>
@@ -1295,13 +1295,13 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
           {/* Basic Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-4 flex items-center space-x-2">
               <Users size={20} />
               <span>Basic Information</span>
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Name *
                 </label>
                 <input
@@ -1321,7 +1321,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Role *
                 </label>
                 <input
@@ -1341,7 +1341,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Greeting Message *
                 </label>
                 <textarea
@@ -1364,13 +1364,13 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
           {/* AI Configuration */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-4 flex items-center space-x-2">
               <Zap size={20} />
               <span>AI Configuration</span>
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Instructions / Prompt *
                 </label>
                 <textarea
@@ -1387,7 +1387,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                 {errors.prompt && (
                   <p className="mt-1 text-sm text-red-600">{errors.prompt}</p>
                 )}
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-sm text-[#737373]">
                   Provide detailed instructions about the agent's role,
                   capabilities, and how it should interact with callers.
                 </p>
@@ -1397,13 +1397,13 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
           {/* Voice & Language */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-4 flex items-center space-x-2">
               <Mic size={20} />
               <span>Voice & Language</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Voice
                 </label>
                 <select
@@ -1431,7 +1431,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Language
                 </label>
                 <select
@@ -1459,14 +1459,14 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
           {/* Advanced Settings */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-4 flex items-center space-x-2">
               <Sliders size={20} />
               <span>Advanced Settings</span>
             </h3>
             <div className="space-y-4">
               {/* Temperature */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Temperature: {formData.temperature}
                 </label>
                 <input
@@ -1480,7 +1480,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   }
                   className="w-full"
                 />
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-sm text-[#737373]">
                   Controls randomness: 0 is focused and deterministic, 1 is
                   creative and varied
                 </p>
@@ -1488,7 +1488,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
               {/* Speech Hints */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Speech Recognition Hints
                 </label>
                 <div className="flex space-x-2 mb-2">
@@ -1506,9 +1506,9 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   <button
                     type="button"
                     onClick={addSpeechHint}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    className="px-4 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
                   >
-                    Add
+                    <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Add</span>
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1528,21 +1528,21 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                     </div>
                   ))}
                 </div>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-sm text-[#737373]">
                   Add keywords to improve speech recognition accuracy
                 </p>
               </div>
 
               {/* Enabled Functions */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Enabled Functions
                 </label>
                 <div className="space-y-2">
                   {AVAILABLE_FUNCTIONS.map((func) => (
                     <label
                       key={func.value}
-                      className="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                      className="flex items-center space-x-3 p-3 border border-[#1F1F1F] rounded-md hover:bg-[#0F0F0F] cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -1550,14 +1550,14 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                           func.value,
                         )}
                         onChange={() => toggleFunction(func.value)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-[#2553F4] rounded focus:ring-[#2553F4]"
                       />
                       <div>
-                        <span className="text-sm text-gray-900 dark:text-white">
+                        <span className="text-sm text-[#FAFAFA]">
                           {func.label}
                         </span>
                         {func.description && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-[#737373]">
                             {func.description}
                           </p>
                         )}
@@ -1620,7 +1620,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Business Hours</h4>
                   <div className="flex flex-wrap items-end gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Open</label>
+                      <label className="block text-xs font-medium text-[#A3A3A3] mb-1">Open</label>
                       <select
                         value={formData.business_hours_start}
                         onChange={(e) => setFormData(prev => ({ ...prev, business_hours_start: parseInt(e.target.value) }))}
@@ -1633,7 +1633,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                     </div>
                     <span className="text-sm text-gray-700 dark:text-gray-300 pb-1.5">to</span>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Close</label>
+                      <label className="block text-xs font-medium text-[#A3A3A3] mb-1">Close</label>
                       <select
                         value={formData.business_hours_end}
                         onChange={(e) => setFormData(prev => ({ ...prev, business_hours_end: parseInt(e.target.value) }))}
@@ -1646,7 +1646,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Open Days</label>
+                    <label className="block text-xs font-medium text-[#A3A3A3] mb-1">Open Days</label>
                     <div className="flex gap-1.5 flex-wrap">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
                         const active = (formData.business_days || []).includes(idx);
@@ -1685,7 +1685,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Email Configuration (SendGrid)</h4>
                   <div className="flex flex-col gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">SendGrid API Key</label>
+                      <label className="block text-xs font-medium text-[#A3A3A3] mb-1">SendGrid API Key</label>
                       <input
                         type="password"
                         value={formData.sendgrid_api_key}
@@ -1695,7 +1695,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">From Email Address</label>
+                      <label className="block text-xs font-medium text-[#A3A3A3] mb-1">From Email Address</label>
                       <input
                         type="email"
                         value={formData.email_from_address}
@@ -1705,7 +1705,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">From Name (optional)</label>
+                      <label className="block text-xs font-medium text-[#A3A3A3] mb-1">From Name (optional)</label>
                       <input
                         type="text"
                         value={formData.email_from_name}
@@ -1732,16 +1732,16 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
           {/* Video Avatar */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+            <h3 className="text-base font-medium text-[#FAFAFA] mb-4 flex items-center space-x-2">
               <Video size={20} />
               <span>Video Avatar</span>
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-sm text-[#737373] mb-4">
               URLs to .mp4 video files shown during calls. Leave blank to use defaults.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Idle Video URL
                 </label>
                 <input
@@ -1751,12 +1751,12 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   placeholder="/videos/sally_idle.mp4"
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-[#737373]">
                   Looping video shown when the agent is listening
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
                   Talking Video URL
                 </label>
                 <input
@@ -1766,7 +1766,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   placeholder="/videos/sally_talking.mp4"
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-[#737373]">
                   Video shown when the agent is speaking
                 </p>
               </div>
@@ -1774,29 +1774,29 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-[#1F1F1F]">
             <button
               type="button"
               onClick={onCancel}
               disabled={saving}
-              className="px-6 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              className="px-6 py-2 text-[#A3A3A3] hover:text-[#FAFAFA] hover:bg-[#0F0F0F] transition-colors disabled:opacity-50"
             >
-              Cancel
+              <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Cancel</span>
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center space-x-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="inline-flex items-center space-x-2 px-6 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors disabled:opacity-50"
             >
               {saving ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Creating...</span>
+                  <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Creating...</span>
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  <span>
+                  <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">
                     {employee ? "Save Changes" : "Create Virtual Employee"}
                   </span>
                 </>
@@ -1841,20 +1841,20 @@ function CodeMenu({ employeeId }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="View code"
-        className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+        className="p-2 text-[#A3A3A3] hover:text-[#FAFAFA] hover:bg-[#0F0F0F] rounded-md transition-colors"
       >
         <MoreVertical size={16} />
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 z-20 w-52 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg overflow-hidden"
+          className="absolute right-0 mt-1 z-20 w-52 border border-[#1F1F1F] bg-[#0A0A0A] overflow-hidden"
         >
           <button
             type="button"
             role="menuitem"
             onClick={() => openCode("swml")}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#A3A3A3] hover:bg-[#0F0F0F]"
           >
             <FileText size={14} className="text-blue-500" />
             View SWML
@@ -1863,7 +1863,7 @@ function CodeMenu({ employeeId }) {
             type="button"
             role="menuitem"
             onClick={() => openCode("sdk")}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 border-t border-gray-100 dark:border-gray-700"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#A3A3A3] hover:bg-[#0F0F0F] border-t border-[#1F1F1F]"
           >
             <Code2 size={14} className="text-purple-500" />
             View Agent SDK Code

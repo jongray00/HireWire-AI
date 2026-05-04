@@ -27,7 +27,7 @@ import { parseWizardEvent } from "@/lib/wizardEvents";
  *
  * Mount in dashboard/layout.jsx so it persists across all pages.
  */
-export default function WizardBanner({ onAgentCreated }) {
+export default function WizardBanner({ onAgentCreated, variant = "global" }) {
   // Per-call session record. Reset each time a new call starts.
   const sessionRef = useRef(null);
   const wasActiveRef = useRef(false);
@@ -169,9 +169,14 @@ export default function WizardBanner({ onAgentCreated }) {
 
   const isActive = calling || connected;
 
+  // Outer page margins — applied when this banner is mounted globally in the
+  // dashboard layout. When embedded inline (e.g. inside a card column), the
+  // surrounding container owns spacing, so we drop these.
+  const outer = variant === "inline" ? "" : "mx-4 lg:mx-6 mt-4 mb-0";
+
   // Small reusable banners.
   const SyncToast = showSyncToast ? (
-    <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-2 bg-[#0A0A0A] border-l-2 border-l-[#2553F4] border-y border-r border-[#1F1F1F] flex items-center gap-2">
+    <div className={`${outer} px-4 py-2 bg-[#0A0A0A] border-l-2 border-l-[#2553F4] border-y border-r border-[#1F1F1F] flex items-center gap-2`}>
       <CheckCircle2 className="w-3.5 h-3.5 text-[#2553F4]" />
       <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-[#2553F4]">
         Webhooks synced — <span className="text-[#8A8A8A] normal-case tracking-normal">{currentDomain}</span>
@@ -180,7 +185,7 @@ export default function WizardBanner({ onAgentCreated }) {
   ) : null;
 
   const RecoveryPanel = (
-    <div className="mx-4 lg:mx-6 mt-4 mb-0 px-4 py-3 bg-[#0A0A0A] border-l-2 border-l-[#E84B5B] border-y border-r border-[#1F1F1F]">
+    <div className={`${outer} px-4 py-3 bg-[#0A0A0A] border-l-2 border-l-[#E84B5B] border-y border-r border-[#1F1F1F]`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 border border-[#E84B5B]/40 flex items-center justify-center shrink-0">
@@ -234,10 +239,28 @@ export default function WizardBanner({ onAgentCreated }) {
 
   // Idle CTA bar
   if (!isActive && !error && !failedToConnect) {
+    if (variant === "button-only") {
+      return (
+        <>
+          {SyncToast}
+          <button
+            type="button"
+            onClick={startCall}
+            aria-label="Start Setup Wizard call"
+            className="relative inline-flex items-center gap-2 px-5 py-2.5 bg-[#2553F4] hover:bg-[#1E46DC] transition-colors"
+          >
+            <span className="hw-pulse-ring" aria-hidden="true"></span>
+            <span className="hw-pulse-ring hw-pulse-ring-delayed" aria-hidden="true"></span>
+            <Phone className="w-4 h-4 text-white relative" />
+            <span className="hw-mono text-[11px] tracking-[0.16em] uppercase text-white font-semibold relative">Call Wizard</span>
+          </button>
+        </>
+      );
+    }
     return (
       <>
         {SyncToast}
-        <div className="mx-4 lg:mx-6 mt-4 mb-0">
+        <div className={outer}>
           <button
             type="button"
             onClick={startCall}
@@ -283,7 +306,7 @@ export default function WizardBanner({ onAgentCreated }) {
   // Generic error state (call failed for some other reason)
   if (!isActive && error) {
     return (
-      <div className="mx-4 lg:mx-6 mt-4 mb-0">
+      <div className={outer}>
         <div className="relative flex items-center justify-between px-4 py-3 bg-[#0A0A0A] border border-[#1F1F1F]">
           <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#E84B5B]" />
           <div className="flex items-center gap-3">
@@ -309,9 +332,43 @@ export default function WizardBanner({ onAgentCreated }) {
     );
   }
 
+  // Compact active state for button-only variant — gives immediate visual
+  // feedback (the moment the user clicks, this replaces the pill) so the user
+  // doesn't see a "dead" button while the SignalWire SDK does its async setup.
+  // The full call experience lives in WizardCreationCanvas.
+  if (variant === "button-only" && isActive) {
+    const statusLabel =
+      connectionState === "connected" ? "Live" :
+      connectionState === "ringing"   ? "Ringing" :
+      "Connecting";
+
+    return (
+      <>
+        {/* Hidden video sink — required by the SignalWire SDK as rootElement
+            for the WebRTC session. Not visible to the user (audio-only call). */}
+        <div ref={videoRef} className="hidden" aria-hidden="true" />
+        <div className="inline-flex items-center gap-3 px-4 py-2.5 bg-[#0A0A0A] border border-[#2553F4]/40">
+          <span className="w-2 h-2 bg-[#2553F4] rounded-full animate-pulse" aria-hidden="true" />
+          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase text-[#FAFAFA]">
+            {statusLabel}
+          </span>
+          <button
+            type="button"
+            onClick={handleEndCall}
+            aria-label="End wizard call"
+            className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E84B5B] hover:bg-[#D63A4A] transition-colors"
+          >
+            <PhoneOff className="w-3 h-3 text-white" />
+            <span className="hw-mono text-[10px] tracking-[0.16em] uppercase text-white font-medium">End</span>
+          </button>
+        </div>
+      </>
+    );
+  }
+
   // Active banner or results
   return (
-    <div className="mx-4 lg:mx-6 mt-4 mb-0">
+    <div className={outer}>
       <div className="relative bg-[#0A0A0A] border border-[#1F1F1F] overflow-hidden">
         <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2553F4]" />
         {/* Banner header */}

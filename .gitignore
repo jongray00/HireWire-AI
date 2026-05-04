@@ -80,3 +80,9 @@ agent-credentials.json
 # Legacy single-tenant employee state (migrated to SQLite per spec §3)
 web/employees.json
 **/employees.json
+
+# Vitest cache
+web/.vitest/
+
+# Visual brainstorming companion artifacts
+.superpowers/

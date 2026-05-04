@@ -259,7 +259,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-2 border-[#2553F4] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -268,19 +268,19 @@ export default function SettingsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
+        <h1 className="text-2xl lg:text-3xl font-medium text-[#FAFAFA] tracking-tight">Settings</h1>
+        <p className="text-[#A3A3A3] mt-1">
           Manage credentials, domain, webhooks, and phone numbers
         </p>
       </div>
 
       {/* SignalWire Credentials */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 flex items-center space-x-2">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
+        <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-1 flex items-center space-x-2">
           <Shield size={20} />
           <span>SignalWire Connection</span>
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        <p className="text-sm text-[#A3A3A3] mb-4">
           Your SignalWire credentials are stored securely on the server.
         </p>
 
@@ -288,25 +288,25 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Space URL</label>
-                <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm font-mono text-gray-900 dark:text-white">
+                <label className="block text-xs font-medium text-[#737373] mb-1">Space URL</label>
+                <div className="px-3 py-2 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md text-sm font-mono text-[#FAFAFA]">
                   {sessionInfo.spaceUrl || "—"}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Project ID</label>
-                <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm font-mono text-gray-900 dark:text-white truncate">
+                <label className="block text-xs font-medium text-[#737373] mb-1">Project ID</label>
+                <div className="px-3 py-2 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md text-sm font-mono text-[#FAFAFA] truncate">
                   {sessionInfo.projectId || "—"}
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
+            <div className="flex items-center space-x-2 text-sm text-green-600">
               <Check size={14} />
               <span>Connected and authenticated</span>
             </div>
           </div>
         ) : (
-          <div className="flex items-center space-x-2 text-sm text-amber-600 dark:text-amber-400">
+          <div className="flex items-center space-x-2 text-sm text-amber-600">
             <AlertTriangle size={14} />
             <span>No active session — please log in</span>
           </div>
@@ -314,16 +314,16 @@ export default function SettingsPage() {
       </div>
 
       {/* Agent Backend Status */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+          <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight flex items-center space-x-2">
             <Server size={20} />
             <span>System Status</span>
           </h2>
           <button
             onClick={checkBackendHealth}
             disabled={checkingBackend}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-50"
+            className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#0F0F0F] border border-[#1F1F1F] hover:bg-[#1A1A1A] text-[#A3A3A3] rounded-md transition-colors disabled:opacity-50"
           >
             <RefreshCw size={12} className={checkingBackend ? "animate-spin" : ""} />
             <span>Refresh</span>
@@ -347,12 +347,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Domain Configuration */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 flex items-center space-x-2">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
+        <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-1 flex items-center space-x-2">
           <Globe size={20} />
           <span>Application Domain</span>
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        <p className="text-sm text-[#A3A3A3] mb-4">
           The public URL where this app is accessible. SignalWire webhook resources will be updated to point here.
         </p>
 
@@ -362,11 +362,11 @@ export default function SettingsPage() {
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
             placeholder="https://your-tunnel-url.ngrok-free.app"
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white font-mono text-sm"
+            className="flex-1 px-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md focus:ring-2 focus:ring-[#2553F4] focus:border-transparent text-[#FAFAFA] font-mono text-sm"
           />
           <button
             onClick={handleAutoDetect}
-            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+            className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold px-3 py-2 bg-[#0F0F0F] border border-[#1F1F1F] hover:bg-[#1A1A1A] text-[#A3A3A3] rounded-md transition-colors"
             title="Auto-detect from current URL"
           >
             Auto
@@ -374,14 +374,14 @@ export default function SettingsPage() {
           <button
             onClick={handleSaveAndSync}
             disabled={saving || !domain.trim()}
-            className="inline-flex items-center space-x-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center space-x-2 px-5 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <Save size={16} />
             )}
-            <span>Save & Sync</span>
+            <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Save & Sync</span>
           </button>
         </div>
 
@@ -389,8 +389,8 @@ export default function SettingsPage() {
           <div
             className={`mt-3 flex items-center space-x-2 text-sm ${
               saveMessage.type === "error"
-                ? "text-red-600 dark:text-red-400"
-                : "text-green-600 dark:text-green-400"
+                ? "text-red-600"
+                : "text-green-600"
             }`}
           >
             {saveMessage.type === "error" ? <AlertTriangle size={14} /> : <Check size={14} />}
@@ -402,10 +402,10 @@ export default function SettingsPage() {
           <div
             className={`mt-2 flex items-center space-x-2 text-sm ${
               syncResult.type === "error"
-                ? "text-red-600 dark:text-red-400"
+                ? "text-red-600"
                 : syncResult.type === "warning"
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-green-600 dark:text-green-400"
+                ? "text-amber-600"
+                : "text-green-600"
             }`}
           >
             {syncResult.type === "success" ? <Check size={14} /> : <AlertTriangle size={14} />}
@@ -416,8 +416,8 @@ export default function SettingsPage() {
 
       {/* Phone Numbers */}
       {phoneNumbers.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+        <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
+          <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-4 flex items-center space-x-2">
             <Phone size={20} />
             <span>Phone Numbers ({phoneNumbers.length})</span>
           </h2>
@@ -426,28 +426,28 @@ export default function SettingsPage() {
             {phoneNumbers.map((num) => (
               <div
                 key={num.sid}
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
+                className="flex items-center justify-between p-3 bg-[#0F0F0F] border border-[#1F1F1F] rounded-md"
               >
                 <div>
-                  <span className="font-mono text-sm text-gray-900 dark:text-white">
+                  <span className="font-mono text-sm text-[#FAFAFA]">
                     {num.phoneNumber}
                   </span>
                   <div className="flex items-center space-x-2 mt-0.5">
                     {num.capabilities?.voice && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Voice</span>
+                      <span className="text-xs text-[#737373]">Voice</span>
                     )}
                     {num.capabilities?.sms && (
-                      <span className="text-xs text-blue-600 dark:text-blue-400">SMS</span>
+                      <span className="text-xs text-blue-600">SMS</span>
                     )}
                   </div>
                 </div>
                 <div>
                   {num.assignedTo ? (
-                    <span className="text-xs text-green-600 dark:text-green-400">
+                    <span className="text-xs text-green-600">
                       Assigned to {num.assignedTo.employeeName}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                    <span className="text-xs text-[#737373]">
                       Unassigned
                     </span>
                   )}
@@ -459,16 +459,16 @@ export default function SettingsPage() {
       )}
 
       {/* Webhook Resource Status */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+          <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight flex items-center space-x-2">
             <ExternalLink size={20} />
             <span>Webhook Resources</span>
           </h2>
           <button
             onClick={() => reconcileWebhooks()}
             disabled={syncing}
-            className="inline-flex items-center space-x-2 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-50"
+            className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold inline-flex items-center space-x-2 px-4 py-2 bg-[#0F0F0F] border border-[#1F1F1F] hover:bg-[#1A1A1A] text-[#A3A3A3] rounded-md transition-colors disabled:opacity-50"
           >
             <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
             <span>Sync All</span>
@@ -477,27 +477,27 @@ export default function SettingsPage() {
 
         {loadingResources ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-3 border-[#2553F4] border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : resources.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-sm py-4 text-center">
+          <p className="text-[#737373] text-sm py-4 text-center">
             No SWML webhook resources found.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">
+                <tr className="border-b border-[#1F1F1F]">
+                  <th className="text-left py-2 px-3 text-[#737373] font-medium">
                     Status
                   </th>
-                  <th className="text-left py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">
+                  <th className="text-left py-2 px-3 text-[#737373] font-medium">
                     Resource
                   </th>
-                  <th className="text-left py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">
+                  <th className="text-left py-2 px-3 text-[#737373] font-medium">
                     Webhook Domain
                   </th>
-                  <th className="text-right py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">
+                  <th className="text-right py-2 px-3 text-[#737373] font-medium">
                     Actions
                   </th>
                 </tr>
@@ -510,32 +510,32 @@ export default function SettingsPage() {
                   return (
                     <tr
                       key={resource.id}
-                      className="border-b border-gray-100 dark:border-gray-700/50"
+                      className="border-b border-[#1F1F1F]"
                     >
                       <td className="py-3 px-3">
                         {stale ? (
-                          <span className="inline-flex items-center space-x-1 text-amber-600 dark:text-amber-400">
+                          <span className="inline-flex items-center space-x-1 text-amber-600">
                             <AlertTriangle size={14} />
                             <span className="text-xs">Stale</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1 text-green-600 dark:text-green-400">
+                          <span className="inline-flex items-center space-x-1 text-green-600">
                             <Check size={14} />
                             <span className="text-xs">Current</span>
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-gray-900 dark:text-white font-medium">
+                      <td className="py-3 px-3 text-[#FAFAFA] font-medium">
                         {resource.display_name || resource.name}
                       </td>
-                      <td className="py-3 px-3 font-mono text-xs text-gray-600 dark:text-gray-400">
+                      <td className="py-3 px-3 font-mono text-xs text-[#A3A3A3]">
                         {resourceHost || "—"}
                       </td>
                       <td className="py-3 px-3 text-right">
                         {stale && (
                           <button
                             onClick={() => handleFixResource(resource)}
-                            className="inline-flex items-center space-x-1 px-2 py-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded transition-colors"
+                            className="inline-flex items-center space-x-1 px-2 py-1 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 rounded transition-colors"
                             title="Fix webhook URL"
                           >
                             <Wrench size={12} />
@@ -557,16 +557,16 @@ export default function SettingsPage() {
 
 function StatusBadge({ label, status }) {
   const config = {
-    ok: { color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", icon: Check, text: "OK" },
-    error: { color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20", icon: AlertTriangle, text: "Error" },
-    unknown: { color: "text-gray-500 dark:text-gray-400", bg: "bg-gray-50 dark:bg-gray-900", icon: null, text: "Unknown" },
+    ok: { color: "text-green-600", bg: "bg-[#0F0F0F] border border-[#1F1F1F]", icon: Check, text: "OK" },
+    error: { color: "text-red-600", bg: "bg-[#0F0F0F] border border-[#1F1F1F]", icon: AlertTriangle, text: "Error" },
+    unknown: { color: "text-[#737373]", bg: "bg-[#0F0F0F] border border-[#1F1F1F]", icon: null, text: "Unknown" },
   };
   const c = config[status] || config.unknown;
   const Icon = c.icon;
 
   return (
-    <div className={`p-3 rounded-lg ${c.bg}`}>
-      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+    <div className={`p-3 rounded-md ${c.bg}`}>
+      <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">{label}</div>
       <div className={`flex items-center space-x-1.5 text-sm font-medium ${c.color}`}>
         {Icon && <Icon size={14} />}
         <span>{c.text}</span>
