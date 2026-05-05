@@ -1,4 +1,6 @@
 import {
+  Links,
+  Meta,
   Outlet,
   Scripts,
   useAsyncError,
@@ -420,6 +422,8 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/src/__create/favicon.png" />
         <title>SignalWire AI IVR Demo</title>
+        <Meta />
+        <Links />
         <script src="https://cdn.jsdelivr.net/npm/@signalwire/call-widget/dist/c2c-widget-full.umd.min.js"></script>
         <script dangerouslySetInnerHTML={{
           __html: `
