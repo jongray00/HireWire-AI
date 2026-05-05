@@ -1739,6 +1739,36 @@ async def health_check():
     }
 
 
+# Module-level initialization. Runs both when `python main.py` executes the
+# `__main__` block below AND when uvicorn imports `main:app` directly (the
+# deployment entry point — `uvicorn main:app --host 0.0.0.0 --port 8000`).
+# Without this, the wizard agent is never mounted in production and SignalWire
+# webhooks to /swml/wizard/ return 404.
+
+# Write credentials file for the Node SWML proxy (it reads
+# web/agent-credentials.json to construct the BasicAuth header).
+try:
+    _credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
+    _swml_path = "/swml/default"
+    with open(_credentials_file, 'w') as f:
+        json.dump({
+            "username": agent_credentials["username"],
+            "password": agent_credentials["password"],
+            "app_domain": agent_credentials["app_domain"],
+            "swml_url": f"{agent_credentials['app_domain']}{_swml_path}" if agent_credentials['app_domain'] else _swml_path,
+            "timestamp": datetime.now().isoformat()
+        }, f, indent=2)
+    logger.info(f"✅ Wrote credentials to: {_credentials_file}")
+except Exception as e:
+    logger.warning(f"Could not write credentials file: {e}")
+
+# Mount the Wizard agent
+wizard = WizardAgent()
+_remount_employee_router("wizard", wizard)
+agent_instances["wizard"] = wizard
+logger.info("🧙 Wizard agent mounted at /swml/wizard")
+
+
 # Main entry point
 if __name__ == "__main__":
     logger.info("=" * 60)
@@ -1759,28 +1789,6 @@ if __name__ == "__main__":
             logger.info(f"🔍 Auto-detected ngrok URL: {detected}")
         else:
             logger.warning("APP_DOMAIN not set and ngrok not detected")
-
-    # Write credentials to file for web app
-    try:
-        credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
-        swml_path = "/swml/default"
-        with open(credentials_file, 'w') as f:
-            json.dump({
-                "username": agent_credentials["username"],
-                "password": agent_credentials["password"],
-                "app_domain": agent_credentials["app_domain"],
-                "swml_url": f"{agent_credentials['app_domain']}{swml_path}" if agent_credentials['app_domain'] else swml_path,
-                "timestamp": datetime.now().isoformat()
-            }, f, indent=2)
-        logger.info(f"✅ Wrote credentials to: {credentials_file}")
-    except Exception as e:
-        logger.warning(f"Could not write credentials file: {e}")
-
-    # Mount the Wizard agent
-    wizard = WizardAgent()
-    _remount_employee_router("wizard", wizard)
-    agent_instances["wizard"] = wizard
-    logger.info("🧙 Wizard agent mounted at /swml/wizard")
 
     # Start server
     uvicorn.run(app, host="0.0.0.0", port=8000)
