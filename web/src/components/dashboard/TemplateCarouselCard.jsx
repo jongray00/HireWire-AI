@@ -40,7 +40,7 @@ export default function TemplateCarouselCard({ templates = [] }) {
           return (
             <Link
               key={t.id}
-              to={`/dashboard/templates#${t.id}`}
+              to={`/dashboard/employees?new=true&template=${t.id}`}
               className="shrink-0 w-[200px] bg-[#0F0F0F] border border-[#1F1F1F] hover:border-[#2553F4]/60 transition-colors p-3 flex flex-col gap-2"
             >
               <div

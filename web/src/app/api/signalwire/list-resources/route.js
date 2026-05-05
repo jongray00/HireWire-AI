@@ -17,10 +17,16 @@ function getResourceName(resource) {
   return resource.name || resource.display_name?.toLowerCase().replace(/\s+/g, '-') || resource.id;
 }
 
-// Helper function to generate callable address
+// Helper function to get callable address.
+// Prefers SignalWire's own `addresses` array (returned for fabric resources)
+// when present; falls back to a constructed `/<type>/<name>` slug.
 function getResourceAddress(resource, addressType = 'public') {
+  if (Array.isArray(resource.addresses)) {
+    const match = resource.addresses.find((a) => a?.type === addressType && a?.name);
+    if (match) return `/${addressType}/${match.name}`;
+  }
   const name = getResourceName(resource);
-  return `/${addressType}/${name}`;
+  return name ? `/${addressType}/${name}` : '';
 }
 
 async function handleRequest(credentials, typeFilter = null) {

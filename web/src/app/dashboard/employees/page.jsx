@@ -378,7 +378,13 @@ export default function EmployeesPage() {
     loadPhoneNumbers();
     if (searchParams.get("new") === "true") {
       setShowCreateForm(true);
-      if (location.state?.template) {
+      const templateId = searchParams.get("template");
+      if (templateId) {
+        import("@/lib/templates").then(({ getTemplateById }) => {
+          const tpl = getTemplateById(templateId);
+          if (tpl?.defaultData) setTemplateData(tpl.defaultData);
+        });
+      } else if (location.state?.template) {
         setTemplateData(location.state.template);
       }
       setSearchParams({}, { replace: true });

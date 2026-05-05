@@ -296,8 +296,12 @@ function ResourceCard({ resource, onUpdate }) {
         <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-1">
           Call Address
         </div>
-        <code className="text-sm text-[#FAFAFA] font-mono">
-          {resource.publicAddress}
+        <code className="text-sm font-mono">
+          {resource.publicAddress ? (
+            <span className="text-[#FAFAFA]">{resource.publicAddress}</span>
+          ) : (
+            <span className="text-[#737373]">No address configured</span>
+          )}
         </code>
       </div>
 
@@ -360,11 +364,10 @@ function ResourceCard({ resource, onUpdate }) {
       </div>
 
       {/* Metadata */}
-      <div className="mt-4 pt-4 border-t border-[#1F1F1F] text-xs text-[#737373]">
-        <div>ID: {resource.id}</div>
-        {resource.created_at && (
-          <div className="mt-1">
-            Created: {new Date(resource.created_at).toLocaleDateString()}
+      <div className="mt-4 pt-4 border-t border-[#1F1F1F] hw-mono text-[10px] tracking-[0.16em] uppercase text-[#737373]">
+        {resource.updated_at && (
+          <div>
+            Last updated {new Date(resource.updated_at).toLocaleString()}
           </div>
         )}
       </div>

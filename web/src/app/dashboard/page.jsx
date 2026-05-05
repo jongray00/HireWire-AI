@@ -213,11 +213,11 @@ export default function DashboardPage() {
 function StatCard({ title, value, icon: Icon }) {
   return (
     <div className="bg-[#0A0A0A] p-6">
-      <div className="hw-mono text-[10px] tracking-[0.18em] uppercase text-[#737373] mb-3 flex items-center gap-2">
-        <Icon size={12} className="text-[#2553F4]" />
+      <div className="hw-mono text-[13px] tracking-[0.18em] uppercase text-[#A3A3A3] mb-3 flex items-center gap-2">
+        <Icon size={16} className="text-[#2553F4]" />
         <span>{title}</span>
       </div>
-      <div className="text-3xl font-light text-[#FAFAFA] tracking-tight">
+      <div className="text-4xl font-light text-[#FAFAFA] tracking-tight">
         {value}
       </div>
     </div>
