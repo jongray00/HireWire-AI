@@ -307,8 +307,9 @@ app.route(API_BASENAME, api);
 // `createHonoServer` calls `serve()` immediately when NODE_ENV=production,
 // which would start an HTTP server *during the build* because @react-router/dev
 // imports this bundle to read its named exports for prerendering. We only want
-// the server to actually start when launched by the production `start` script,
-// so gate the call behind an explicit env var.
+// the server to actually start when launched by the production `start` script
+// (which sets HIREWIRE_START=1), or by the dev server (NODE_ENV !== 'production'),
+// where mounting the React Router middleware is required for page routes to render.
 //
 // Additionally, in production we avoid `createHonoServer`'s built-in
 // `serve()` call (which has been observed to hang inside this bundle's
@@ -316,7 +317,10 @@ app.route(API_BASENAME, api);
 // production entry script (`scripts/start-prod.mjs`) imports `app`, wires up
 // the React Router request handler, and binds the HTTP listener itself.
 let honoApp: unknown = app;
-if (process.env.HIREWIRE_START === '1') {
+if (
+  process.env.HIREWIRE_START === '1' ||
+  process.env.NODE_ENV !== 'production'
+) {
   honoApp = await createHonoServer({
     app,
     defaultLogger: false,

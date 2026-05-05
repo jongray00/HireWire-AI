@@ -61,7 +61,7 @@ externalPort = 8000
 [deployment]
 deploymentTarget = "vm"
 run = ["bash", "-c", "(cd agent && uvicorn main:app --host 0.0.0.0 --port 8000) & (cd web && PORT=5000 HOST=0.0.0.0 npm start)"]
-build = ["bash", "-c", "cd web && npm install && npm run build"]
+build = ["bash", "-c", "cd web && npm install --legacy-peer-deps --no-audit --no-fund && npm run build"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
