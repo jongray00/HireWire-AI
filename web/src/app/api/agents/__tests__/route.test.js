@@ -51,7 +51,7 @@ describe("Agent CRUD API", () => {
   it("validates that agent schema module exports correctly", async () => {
     const { validateAgentConfig, AVAILABLE_FUNCTIONS } = await import("@/lib/agentSchema");
     expect(validateAgentConfig).toBeDefined();
-    expect(AVAILABLE_FUNCTIONS).toHaveLength(7);
+    expect(AVAILABLE_FUNCTIONS).toHaveLength(6);
   });
 
   it("validates agent config rejects empty name", async () => {
@@ -70,10 +70,10 @@ describe("Agent CRUD API", () => {
   it("converts config to backend payload format", async () => {
     const { configToBackendPayload } = await import("@/lib/agentSchema");
     const payload = configToBackendPayload(
-      { name: "Bot", prompt: "Help", functions: ["end_call"], businessHours: { start: 10, end: 17, days: [1, 2, 3] } },
+      { name: "Bot", prompt: "Help", functions: ["send_email"], businessHours: { start: 10, end: 17, days: [1, 2, 3] } },
       { id: "x", projectId: "p" }
     );
-    expect(payload.enabled_functions).toEqual(["end_call"]);
+    expect(payload.enabled_functions).toEqual(["send_email"]);
     expect(payload.business_hours_start).toBe(10);
     expect(payload.id).toBe("x");
   });

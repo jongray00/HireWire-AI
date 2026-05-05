@@ -45,7 +45,7 @@ describe('configToBackendPayload', () => {
       role: 'Sales',
       prompt: 'Sell things',
       voice: 'openai.alloy',
-      functions: ['transfer_to_human', 'end_call'],
+      functions: ['transfer_to_human', 'send_email'],
       businessHours: { start: 10, end: 17, days: [1, 2, 3] },
       emailConfig: { sendgridKey: 'sg-key', fromAddress: 'a@b.com', fromName: 'Bot' },
     };
@@ -53,7 +53,7 @@ describe('configToBackendPayload', () => {
     const payload = configToBackendPayload(config, { id: 'abc', projectId: 'proj-1' });
 
     expect(payload.name).toBe('Sales Bot');
-    expect(payload.enabled_functions).toEqual(['transfer_to_human', 'end_call']);
+    expect(payload.enabled_functions).toEqual(['transfer_to_human', 'send_email']);
     expect(payload.business_hours_start).toBe(10);
     expect(payload.business_hours_end).toBe(17);
     expect(payload.business_days).toEqual([1, 2, 3]);
@@ -66,13 +66,13 @@ describe('configToBackendPayload', () => {
     const payload = configToBackendPayload({ name: 'X', prompt: 'Y' });
     expect(payload.voice).toBe('openai.nova');
     expect(payload.temperature).toBe(0.7);
-    expect(payload.enabled_functions).toEqual(['transfer_to_human', 'send_summary_sms', 'end_call']);
+    expect(payload.enabled_functions).toEqual([]);
   });
 });
 
 describe('AVAILABLE_FUNCTIONS', () => {
-  it('has 7 functions', () => {
-    expect(AVAILABLE_FUNCTIONS).toHaveLength(7);
+  it('has 6 functions', () => {
+    expect(AVAILABLE_FUNCTIONS).toHaveLength(6);
   });
 
   it('each function has id, label, description', () => {

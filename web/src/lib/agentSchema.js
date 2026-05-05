@@ -13,7 +13,6 @@ export const AVAILABLE_FUNCTIONS = [
   { id: 'check_business_hours', label: 'Check Business Hours', description: 'Check if the business is currently open' },
   { id: 'collect_customer_info', label: 'Collect Customer Info', description: 'Gather contact details from the caller' },
   { id: 'send_email', label: 'Send Email', description: 'Send a follow-up email via SendGrid' },
-  { id: 'end_call', label: 'End Call', description: 'Politely end the conversation' },
 ];
 
 /** Default agent configuration */
@@ -25,7 +24,7 @@ export const DEFAULT_AGENT_CONFIG = {
   voice: 'openai.nova',
   language: 'en-US',
   temperature: 0.7,
-  functions: ['transfer_to_human', 'send_summary_sms', 'end_call'],
+  functions: [],
   transferNumber: '',
   smsFromNumber: '',
   businessHours: { start: 9, end: 18, days: [0, 1, 2, 3, 4] },
@@ -66,7 +65,7 @@ export function configToBackendPayload(config, extra = {}) {
     voice: config.voice || 'openai.nova',
     language: config.language || 'en-US',
     temperature: config.temperature ?? 0.7,
-    enabled_functions: config.functions || ['transfer_to_human', 'send_summary_sms', 'end_call'],
+    enabled_functions: config.functions || [],
     transfer_number: config.transferNumber || '',
     sms_from_number: config.smsFromNumber || '',
     business_hours_start: config.businessHours?.start ?? 9,

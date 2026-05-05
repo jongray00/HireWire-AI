@@ -14,7 +14,7 @@ const SEED_EMPLOYEES = [
     greeting: 'Hi there! Welcome to our company. How can I help you today?',
     prompt: 'You are Sally, a friendly and knowledgeable sales representative. Help customers find the right products, answer pricing questions, and guide them through the purchasing process.',
     voice: 'openai.nova',
-    functions: ['transfer_to_human', 'send_summary_sms', 'collect_customer_info', 'end_call'],
+    functions: ['transfer_to_human', 'send_summary_sms', 'collect_customer_info'],
   },
   {
     name: 'Tech Support Tom',
@@ -22,7 +22,7 @@ const SEED_EMPLOYEES = [
     greeting: 'Hello! You\'ve reached tech support. What issue can I help you with?',
     prompt: 'You are Tom, a patient and thorough technical support agent. Help customers troubleshoot issues, walk them through solutions step-by-step, and escalate when needed.',
     voice: 'openai.onyx',
-    functions: ['transfer_to_human', 'send_summary_sms', 'schedule_callback', 'check_business_hours', 'end_call'],
+    functions: ['transfer_to_human', 'send_summary_sms', 'schedule_callback', 'check_business_hours'],
   },
 ];
 

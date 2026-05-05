@@ -55,9 +55,6 @@ export async function POST(request, { params }) {
       case 'check_business_hours':
         return handleCheckBusinessHours(subscriberId);
 
-      case 'end_call':
-        return handleEndCall(args, subscriberId);
-
       default:
         return Response.json({
           response: `I'm sorry, I don't have access to that function right now. Is there anything else I can help with?`,
@@ -138,14 +135,6 @@ function handleCheckBusinessHours(subscriberId) {
     response: isOpen
       ? "We are currently open. Our business hours are Monday through Friday, 9 AM to 6 PM."
       : "We are currently closed. Our business hours are Monday through Friday, 9 AM to 6 PM. I can take a message or schedule a callback for when we reopen.",
-  });
-}
-
-function handleEndCall(args, subscriberId) {
-  console.log(`Call ended: ${args?.reason || 'Conversation complete'}`);
-
-  return Response.json({
-    response: "Thank you for calling! Have a wonderful day. Goodbye!",
   });
 }
 
