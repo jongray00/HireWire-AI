@@ -14,6 +14,10 @@ import { useEffect, useRef, useState } from 'react';
  *   campaign. Renders as a single text input with an embedded caret button
  *   that opens a popover of registry numbers. Typing any number is always
  *   permitted.
+ * @param {"select" | "combobox"} [props.variant]
+ *   "select" (default for `source="all"`) — flat dropdown with a "Custom number…" toggle.
+ *   "combobox" — single text input + caret button that opens a popover of pickable numbers.
+ *   `source="campaign-registry"` always uses the combobox renderer regardless of this prop.
  */
 export default function PhoneNumberPicker({
   value,
@@ -22,6 +26,7 @@ export default function PhoneNumberPicker({
   placeholder,
   credentials,
   source = 'all',
+  variant = 'select',
 }) {
   const [phoneNumbers, setPhoneNumbers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -60,14 +65,13 @@ export default function PhoneNumberPicker({
   };
 
   const fieldClasses =
-    "w-full px-4 py-2 text-sm rounded-lg border " +
-    "border-gray-300 dark:border-gray-600 " +
-    "bg-white dark:bg-gray-700 " +
-    "text-gray-900 dark:text-white " +
-    "placeholder-gray-400 dark:placeholder-gray-500 " +
-    "focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+    "w-full px-4 py-3 text-sm bg-[#0A0A0A] border border-[#1F1F1F] " +
+    "text-[#FAFAFA] placeholder:text-[#737373] " +
+    "focus:outline-none focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors";
 
-  if (source === 'campaign-registry') {
+  const useCombobox = source === 'campaign-registry' || variant === 'combobox';
+
+  if (useCombobox) {
     return (
       <ComboboxField
         value={value || ''}
@@ -87,12 +91,12 @@ export default function PhoneNumberPicker({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+      <label className="block text-sm font-medium text-[#A3A3A3] mb-2">
         {label}
       </label>
 
       {loading ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading phone numbers...</p>
+        <p className="text-sm text-[#737373]">Loading phone numbers...</p>
       ) : (
         <>
           <select
@@ -139,6 +143,7 @@ export default function PhoneNumberPicker({
 function ComboboxField({ value, onChange, label, placeholder, loading, options, formatNumber }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const inputId = useRef(`phone-combobox-${Math.random().toString(36).slice(2)}`).current;
 
   // Close on click outside.
   useEffect(() => {
@@ -160,23 +165,24 @@ function ComboboxField({ value, onChange, label, placeholder, loading, options, 
   }, [open]);
 
   const inputClasses =
-    "w-full pl-4 pr-10 py-2 text-sm rounded-lg border " +
-    "border-gray-300 dark:border-gray-600 " +
-    "bg-white dark:bg-gray-700 " +
-    "text-gray-900 dark:text-white " +
-    "placeholder-gray-400 dark:placeholder-gray-500 " +
-    "focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+    "w-full pl-4 pr-10 py-3 text-sm bg-[#0A0A0A] border border-[#1F1F1F] " +
+    "text-[#FAFAFA] placeholder:text-[#737373] " +
+    "focus:outline-none focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors";
 
   const hasOptions = options.length > 0;
   const caretDisabled = loading || !hasOptions;
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+      <label
+        htmlFor={inputId}
+        className="block text-sm font-medium text-[#A3A3A3] mb-2"
+      >
         {label}
       </label>
       <div ref={wrapperRef} className="relative">
         <input
+          id={inputId}
           type="tel"
           inputMode="tel"
           autoComplete="off"
@@ -197,20 +203,13 @@ function ComboboxField({ value, onChange, label, placeholder, loading, options, 
           type="button"
           onClick={() => !caretDisabled && setOpen((o) => !o)}
           disabled={caretDisabled}
-          aria-label={
-            loading
-              ? 'Loading campaign-registry numbers'
-              : hasOptions
-                ? `Pick from ${options.length} campaign-registry number${options.length === 1 ? '' : 's'}`
-                : 'No campaign-registry numbers available'
-          }
+          aria-label="Open phone number list"
           aria-haspopup="listbox"
           aria-expanded={open}
           className={
             'absolute right-0 top-0 h-full px-3 flex items-center ' +
-            'text-gray-500 dark:text-gray-400 ' +
-            'hover:text-gray-700 dark:hover:text-gray-200 ' +
-            'focus:outline-none focus:text-blue-600 ' +
+            'text-[#737373] hover:text-[#FAFAFA] ' +
+            'focus:outline-none focus:text-[#2553F4] ' +
             'disabled:opacity-50 disabled:cursor-not-allowed'
           }
         >
@@ -233,9 +232,8 @@ function ComboboxField({ value, onChange, label, placeholder, loading, options, 
             role="listbox"
             className={
               'absolute z-20 mt-1 w-full max-h-60 overflow-auto ' +
-              'rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 ' +
-              'border border-gray-200 dark:border-gray-600 ' +
-              'bg-white dark:bg-gray-700 ' +
+              'shadow-lg border border-[#1F1F1F] ' +
+              'bg-[#0A0A0A] ' +
               'py-1 text-sm'
             }
           >
@@ -252,14 +250,14 @@ function ComboboxField({ value, onChange, label, placeholder, loading, options, 
                   }}
                   className={
                     'cursor-pointer px-4 py-2 ' +
-                    'text-gray-900 dark:text-white ' +
-                    'hover:bg-blue-50 dark:hover:bg-gray-600 ' +
-                    (selected ? 'bg-blue-100 dark:bg-gray-600 font-medium' : '')
+                    'text-[#FAFAFA] ' +
+                    'hover:bg-[#1F1F1F] ' +
+                    (selected ? 'bg-[#1F1F1F] font-medium' : '')
                   }
                 >
                   <div>{formatNumber(pn.phoneNumber)}</div>
                   {pn.friendlyName && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="text-xs text-[#737373]">
                       {pn.friendlyName}
                     </div>
                   )}

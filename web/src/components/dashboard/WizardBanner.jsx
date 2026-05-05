@@ -277,7 +277,7 @@ export default function WizardBanner({ onAgentCreated, variant = "global" }) {
                   Setup Wizard
                 </div>
                 <div className="text-base text-[#FAFAFA] font-medium">
-                  Build a new AI employee by voice
+                  Build a new AI agent by voice
                 </div>
                 <div className="text-xs text-[#A3A3A3] mt-0.5">
                   Talk to the wizard — it&apos;ll create the agent for you in about a minute.

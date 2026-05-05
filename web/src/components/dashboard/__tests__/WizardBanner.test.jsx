@@ -104,7 +104,7 @@ describe("WizardBanner", () => {
     // The bordered idle card chrome's mono label "SETUP WIZARD" should NOT render
     expect(screen.queryByText(/setup wizard/i)).toBeNull();
     // The headline should NOT render
-    expect(screen.queryByText(/build a new ai employee/i)).toBeNull();
+    expect(screen.queryByText(/build a new ai agent/i)).toBeNull();
   });
 
   it("variant='button-only' renders compact connecting indicator while calling", () => {

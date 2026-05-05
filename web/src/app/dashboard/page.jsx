@@ -91,7 +91,7 @@ export default function DashboardPage() {
         .map((call) => ({
           id: call.id,
           type: "call",
-          employee: call.employeeName || "Unknown Employee",
+          employee: call.employeeName || "Unknown Agent",
           message: `Call ${call.outcome || call.status || "completed"} - ${call.durationSec || call.duration || 0}s`,
           timestamp: call.timestamp,
         }));
@@ -125,7 +125,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 border border-[#1F1F1F] divide-x divide-[#1F1F1F] divide-y lg:divide-y-0 md:divide-y-0">
-          <StatCard title="Employees" value={stats.totalEmployees} icon={Users} />
+          <StatCard title="Agents" value={stats.totalEmployees} icon={Users} />
           <StatCard title="Active Calls" value={stats.activeCalls} icon={Phone} />
           <StatCard title="Total Calls" value={stats.totalCalls} icon={Activity} />
           <StatCard title="Avg Duration" value={`${stats.avgDuration}s`} icon={Clock} />
@@ -149,7 +149,7 @@ export default function DashboardPage() {
                 className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
               >
                 <Plus size={16} />
-                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Employee</span>
+                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Agent</span>
               </button>
             </div>
           ) : (

@@ -534,7 +534,9 @@ export function employeeRowToJson(row: any) {
     language: row.language,
     temperature: row.temperature,
     speech_hints: safeJsonParse(row.speech_hints, []),
-    enabled_functions: safeJsonParse(row.enabled_functions, []),
+    enabled_functions: safeJsonParse(row.enabled_functions, []).filter(
+      (fn: string) => fn !== 'end_call'
+    ),
     transfer_number: row.transfer_number,
     transfer_from: row.transfer_from,
     sms_from_number: row.sms_from_number,

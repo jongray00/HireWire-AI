@@ -37,9 +37,9 @@ describe("DashboardPage positioning", () => {
       expect(screen.getByText(/build by voice/i)).toBeInTheDocument();
     });
     const hero = screen.getByText(/build by voice/i).closest("section");
-    // Stat label rendered by <StatCard title="Employees" /> — exact match avoids
-    // matching the lowercase "employee" text inside WizardCallCard.
-    const stats = screen.getByText("Employees");
+    // Stat label rendered by <StatCard title="Agents" /> — exact match avoids
+    // matching the lowercase "agent" text inside WizardCallCard.
+    const stats = screen.getByText("Agents");
     // hero before stats means stats follows hero in document order
     expect(hero.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -55,10 +55,10 @@ describe("DashboardPage positioning", () => {
       // The bottom-position case still has the hero — confirm it's there
       expect(screen.getByText(/build by voice/i)).toBeInTheDocument();
       // And confirm we're past the loading state by waiting for the stats label
-      expect(screen.getByText("Employees")).toBeInTheDocument();
+      expect(screen.getByText("Agents")).toBeInTheDocument();
     });
     const hero = screen.getByText(/build by voice/i).closest("section");
-    const stats = screen.getByText("Employees");
+    const stats = screen.getByText("Agents");
     expect(stats.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

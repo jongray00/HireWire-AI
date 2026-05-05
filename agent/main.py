@@ -643,31 +643,6 @@ class VirtualEmployeeAgent(AgentBase):
             })
             return result
 
-    @AgentBase.tool(
-        name="end_call",
-        description="End the call politely when the conversation is complete and the caller is ready to hang up",
-        parameters={
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": "Reason for ending the call"
-                }
-            }
-        }
-    )
-    def end_call(self, args, raw_data):
-        """Politely end the call"""
-        reason = args.get("reason", "Conversation complete")
-        logger.info(f"[{self.employee_id}] Call ended: {reason}")
-
-        result = SwaigFunctionResult(
-            "Thank you for calling! Have a wonderful day. Goodbye!",
-            post_process=True
-        )
-        result.hangup()
-        return result
-
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
         """Override to dynamically set video URLs and enable live transcription"""
         # Get the host from the request object if available
@@ -1184,7 +1159,7 @@ class WizardAgent(AgentBase):
         voice = args.get("voice", "openai.nova")
         language = args.get("language", "en-US")
         temperature = args.get("temperature", 0.7)
-        functions = args.get("functions", ["transfer_to_human", "end_call"])
+        functions = args.get("functions", [])
 
         # Dedup guard: SignalWire retries SWAIG calls if a tool exceeds its
         # response timeout. Without this guard each retry creates a new
@@ -1330,7 +1305,6 @@ class WizardAgent(AgentBase):
             "- check_business_hours: Tell callers if you are currently open\n"
             "- collect_customer_info: Gather and store caller name, email, phone, and company\n"
             "- send_email: Send follow-up emails to callers via SendGrid\n"
-            "- end_call: Politely end the call when the conversation is complete\n"
             "- search_knowledge: Search uploaded documents to answer caller questions"
         )
         logger.info(f"[WizardAgent.list_available_functions] RETURNING")
@@ -1421,7 +1395,7 @@ async def create_employee(request: Request):
             "language": data.get("language", "en-US"),
             "temperature": data.get("temperature", 0.7),
             "speech_hints": data.get("speech_hints", []),
-            "enabled_functions": data.get("enabled_functions", ["transfer_to_human", "send_summary_sms", "end_call"]),
+            "enabled_functions": data.get("enabled_functions", []),
             "transfer_number": data.get("transfer_number", ""),
             "transfer_from": data.get("transfer_from", ""),
             "sms_from_number": data.get("sms_from_number", ""),
@@ -1623,7 +1597,7 @@ async def update_config_legacy(request: Request):
                 "language": "en-US",
                 "temperature": 0.7,
                 "speech_hints": [],
-                "enabled_functions": ["transfer_to_human", "send_summary_sms", "end_call"],
+                "enabled_functions": [],
                 "transfer_number": "",
                 "transfer_from": "",
                 "sms_from_number": "",

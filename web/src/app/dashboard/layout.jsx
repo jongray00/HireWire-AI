@@ -17,7 +17,7 @@ import WizardCreationCanvas from "@/components/dashboard/WizardCreationCanvas";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Employees", href: "/dashboard/employees", icon: Users },
+  { name: "Agents", href: "/dashboard/employees", icon: Users },
   { name: "Resources", href: "/dashboard/resources", icon: Zap },
   { name: "Templates", href: "/dashboard/templates", icon: FileText },
   { name: "Call Logs", href: "/dashboard/call-logs", icon: Activity },

@@ -233,7 +233,6 @@ const AVAILABLE_FUNCTIONS = [
   { value: 'collect_customer_info', label: 'Collect Customer Info', description: 'Gather name, email, phone, company — shown in call logs' },
   { value: 'search_knowledge', label: 'Search Knowledge Base', description: 'Search uploaded documents to answer caller questions (requires documents)' },
   { value: 'send_email', label: 'Send Email', description: 'Send follow-up emails via SendGrid integration' },
-  { value: 'end_call', label: 'End Call', description: 'Politely end the call with a hangup' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -294,14 +293,14 @@ function StaleWebhookBanner({
         <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={20} />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-amber-800 dark:text-amber-300">
-            {staleCount} employee{staleCount !== 1 ? "s" : ""}{" "}
+            {staleCount} agent{staleCount !== 1 ? "s" : ""}{" "}
             {staleCount !== 1 ? "have" : "has"} outdated webhook
             {staleCount !== 1 ? "s" : ""}
           </h3>
           <p className="text-sm mt-1 text-amber-700 dark:text-amber-400">
             {staleCount === 1
-              ? "This employee's webhook points"
-              : "These employees' webhooks point"}{" "}
+              ? "This agent's webhook points"
+              : "These agents' webhooks point"}{" "}
             to an old domain. Incoming calls will fail until the webhooks are
             updated to the current domain.
           </p>
@@ -314,7 +313,7 @@ function StaleWebhookBanner({
                   ? "text-green-700 dark:text-green-400"
                   : fixAllResult.type === "warning"
                   ? "text-amber-700 dark:text-amber-400"
-                  : "text-red-700 dark:text-red-400"
+                  : "text-[#E84B5B]"
               }`}
             >
               {fixAllResult.type === "success" ? (
@@ -547,7 +546,7 @@ export default function EmployeesPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Failed to create virtual employee");
+        throw new Error(error.error || "Failed to create virtual agent");
       }
 
       const result = await response.json();
@@ -557,11 +556,11 @@ export default function EmployeesPage() {
       setShowCreateForm(false);
 
       alert(
-        `Virtual Employee "${newEmployee.name}" created successfully!\n\nCall Address: ${newEmployee.callFabricAddress}`,
+        `Virtual Agent "${newEmployee.name}" created successfully!\n\nCall Address: ${newEmployee.callFabricAddress}`,
       );
     } catch (error) {
       console.error("Error creating employee:", error);
-      alert("Failed to create virtual employee: " + error.message);
+      alert("Failed to create virtual agent: " + error.message);
     }
   };
 
@@ -574,7 +573,7 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmployee = (employeeId) => {
-    if (window.confirm("Are you sure you want to delete this virtual employee?")) {
+    if (window.confirm("Are you sure you want to delete this virtual agent?")) {
       const updatedEmployees = employees.filter((emp) => emp.id !== employeeId);
       saveEmployees(updatedEmployees);
     }
@@ -603,7 +602,7 @@ export default function EmployeesPage() {
           ...prev,
           [employee.id]: {
             status: "error",
-            message: "No SignalWire resource ID stored for this employee. Recreate the employee to fix this.",
+            message: "No SignalWire resource ID stored for this agent. Recreate the agent to fix this.",
           },
         }));
         return;
@@ -756,7 +755,7 @@ export default function EmployeesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl lg:text-3xl font-medium text-[#FAFAFA] tracking-tight">
-            Virtual Employees
+            Virtual Agents
           </h1>
           <p className="text-[#A3A3A3] mt-1">
             AI voice agents powered by SignalWire
@@ -767,7 +766,7 @@ export default function EmployeesPage() {
           className="inline-flex items-center space-x-2 px-4 py-2 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
         >
           <Plus size={20} />
-          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Virtual Employee</span>
+          <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Virtual Agent</span>
         </button>
       </div>
 
@@ -805,7 +804,7 @@ export default function EmployeesPage() {
               size={64}
             />
             <h3 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-2">
-              {searchQuery ? "No employees found" : "No virtual employees yet"}
+              {searchQuery ? "No agents found" : "No virtual agents yet"}
             </h3>
             <p className="text-[#A3A3A3] mb-6">
               {searchQuery
@@ -818,7 +817,7 @@ export default function EmployeesPage() {
                 className="inline-flex items-center space-x-2 px-6 py-3 bg-[#2553F4] hover:bg-[#1E46DC] text-white transition-colors"
               >
                 <Plus size={20} />
-                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Virtual Employee</span>
+                <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">Create Your First Virtual Agent</span>
               </button>
             )}
           </div>
@@ -871,7 +870,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
 
   const handleCall = async () => {
     if (!employee.callFabricAddress) {
-      alert("No call address available for this employee");
+      alert("No call address available for this agent");
       return;
     }
     await initiateCall(employee.callFabricAddress, {
@@ -952,7 +951,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
           </button>
           <button
             onClick={onDelete}
-            className="p-2 text-[#A3A3A3] hover:text-red-400 hover:bg-red-900/30 rounded-md transition-colors"
+            className="p-2 text-[#A3A3A3] hover:text-[#E84B5B] hover:bg-[#E84B5B]/10 rounded-md transition-colors"
           >
             <Trash2 size={16} />
           </button>
@@ -961,7 +960,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
       </div>
 
       <h3 className="text-base font-medium text-[#FAFAFA] mb-1">
-        {employee.name || "Unnamed Employee"}
+        {employee.name || "Unnamed Agent"}
       </h3>
       <p className="text-sm text-[#737373] mb-4">
         {employee.role || "No role specified"}
@@ -1025,14 +1024,14 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
 
       {/* Fix error message */}
       {fixError && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <div className="mb-4 p-3 bg-[#E84B5B]/10 border border-[#E84B5B]/30 rounded-lg">
           <div className="flex items-start gap-2">
-            <XCircle className="text-red-500 mt-0.5 shrink-0" size={14} />
+            <XCircle className="text-[#E84B5B] mt-0.5 shrink-0" size={14} />
             <div className="min-w-0">
-              <p className="text-sm font-medium text-red-800 dark:text-red-300">
+              <p className="text-sm font-medium text-[#E84B5B]">
                 Fix failed
               </p>
-              <p className="text-xs text-red-700 dark:text-red-400 mt-0.5 break-words">
+              <p className="text-xs text-[#E84B5B] mt-0.5 break-words">
                 {fixState.message}
               </p>
             </div>
@@ -1083,7 +1082,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
             <button
               onClick={onUnassignPhone}
               disabled={phoneLoading}
-              className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
+              className="text-xs text-[#E84B5B] hover:text-[#F06070] disabled:opacity-50"
             >
               Unassign
             </button>
@@ -1095,9 +1094,9 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
       ) : employee.resourceId && phoneNumbers?.length > 0 ? (
         <div className="mb-4">
           {assigningPhone === employee.id ? (
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-3 bg-[#2553F4]/10 border border-[#2553F4]/30 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-blue-800 dark:text-blue-300">
+                <span className="text-xs font-medium text-[#FAFAFA]">
                   Assign Phone Number
                 </span>
                 <button onClick={onToggleAssign} className="text-xs text-[#737373] hover:text-[#FAFAFA]">
@@ -1112,13 +1111,13 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
                       key={num.sid}
                       onClick={() => onAssignPhone(num.phoneNumber)}
                       disabled={phoneLoading}
-                      className="w-full text-left px-2 py-1.5 text-sm hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded transition-colors disabled:opacity-50"
+                      className="w-full text-left px-2 py-1.5 text-sm hover:bg-[#2553F4]/15 rounded transition-colors disabled:opacity-50"
                     >
-                      <span className="font-mono text-blue-900 dark:text-blue-200">
+                      <span className="font-mono text-[#FAFAFA]">
                         {num.phoneNumber}
                       </span>
                       {num.capabilities?.sms && (
-                        <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">SMS</span>
+                        <span className="ml-2 text-xs text-[#2553F4]">SMS</span>
                       )}
                     </button>
                   ))}
@@ -1132,7 +1131,7 @@ function EmployeeCard({ employee, currentDomain, fixState, onFix, onEdit, onDele
           ) : (
             <button
               onClick={onToggleAssign}
-              className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 border border-dashed border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 text-xs text-[#2553F4] border border-dashed border-[#2553F4]/40 rounded-lg hover:bg-[#2553F4]/10 transition-colors"
             >
               <Phone size={12} />
               <span>Assign Phone Number</span>
@@ -1189,7 +1188,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
     language: source.language || "en-US",
     temperature: source.temperature ?? 0.7,
     speech_hints: source.speech_hints || [],
-    enabled_functions: source.enabled_functions || ["transfer_to_human", "send_summary_sms", "end_call"],
+    enabled_functions: source.enabled_functions || [],
     transfer_number: source.transfer_number || "",
     transfer_from: source.transfer_from || "",
     sms_from_number: source.sms_from_number || "",
@@ -1285,7 +1284,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                 <ArrowLeft size={20} />
               </button>
               <h2 className="text-xl lg:text-2xl font-medium text-[#FAFAFA] tracking-tight">
-                {employee ? "Edit Virtual Employee" : "Create Virtual Employee"}
+                {employee ? "Edit Virtual Agent" : "Create Virtual Agent"}
               </h2>
             </div>
           </div>
@@ -1308,15 +1307,15 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleChange("name", e.target.value)}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-4 py-2 border rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors ${
                     errors.name
-                      ? "border-red-500"
-                      : "border-gray-300 dark:border-gray-600"
+                      ? "border-[#E84B5B]"
+                      : "border-[#1F1F1F]"
                   }`}
                   placeholder="e.g., Sarah Sales Agent"
                 />
                 {errors.name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                  <p className="mt-1 text-sm text-[#E84B5B]">{errors.name}</p>
                 )}
               </div>
 
@@ -1328,15 +1327,15 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   type="text"
                   value={formData.role}
                   onChange={(e) => handleChange("role", e.target.value)}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-4 py-2 border rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors ${
                     errors.role
-                      ? "border-red-500"
-                      : "border-gray-300 dark:border-gray-600"
+                      ? "border-[#E84B5B]"
+                      : "border-[#1F1F1F]"
                   }`}
                   placeholder="e.g., Customer Support Agent"
                 />
                 {errors.role && (
-                  <p className="mt-1 text-sm text-red-600">{errors.role}</p>
+                  <p className="mt-1 text-sm text-[#E84B5B]">{errors.role}</p>
                 )}
               </div>
 
@@ -1348,15 +1347,15 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   value={formData.greeting}
                   onChange={(e) => handleChange("greeting", e.target.value)}
                   rows={4}
-                  className={`w-full px-4 py-3 text-base leading-relaxed border rounded-lg resize-y min-h-[7rem] focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-4 py-3 text-base leading-relaxed border rounded-lg resize-y min-h-[7rem] bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors ${
                     errors.greeting
-                      ? "border-red-500"
-                      : "border-gray-300 dark:border-gray-600"
+                      ? "border-[#E84B5B]"
+                      : "border-[#1F1F1F]"
                   }`}
                   placeholder="e.g., Hello! I'm Sarah, how can I help you today?"
                 />
                 {errors.greeting && (
-                  <p className="mt-1 text-sm text-red-600">{errors.greeting}</p>
+                  <p className="mt-1 text-sm text-[#E84B5B]">{errors.greeting}</p>
                 )}
               </div>
             </div>
@@ -1377,15 +1376,15 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   value={formData.prompt}
                   onChange={(e) => handleChange("prompt", e.target.value)}
                   rows={6}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
+                  className={`w-full px-4 py-2 border rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors ${
                     errors.prompt
-                      ? "border-red-500"
-                      : "border-gray-300 dark:border-gray-600"
+                      ? "border-[#E84B5B]"
+                      : "border-[#1F1F1F]"
                   }`}
                   placeholder="Describe the agent's responsibilities, knowledge base, and behavior. For example: You are a customer support agent for Acme Corp. You help customers with order tracking, product questions, and technical support..."
                 />
                 {errors.prompt && (
-                  <p className="mt-1 text-sm text-red-600">{errors.prompt}</p>
+                  <p className="mt-1 text-sm text-[#E84B5B]">{errors.prompt}</p>
                 )}
                 <p className="mt-1 text-sm text-[#737373]">
                   Provide detailed instructions about the agent's role,
@@ -1409,7 +1408,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                 <select
                   value={formData.voice}
                   onChange={(e) => handleChange("voice", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-2 border border-[#1F1F1F] rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                 >
                   {Object.entries(
                     getVoicesForLanguage(formData.language).reduce((groups, voice) => {
@@ -1445,7 +1444,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                       handleChange("voice", available[0]?.value || "openai.nova");
                     }
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-2 border border-[#1F1F1F] rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                 >
                   {LANGUAGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -1500,7 +1499,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                       e.key === "Enter" &&
                       (e.preventDefault(), addSpeechHint())
                     }
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="flex-1 px-4 py-2 border border-[#1F1F1F] rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                     placeholder="Add a word or phrase..."
                   />
                   <button
@@ -1515,13 +1514,13 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   {formData.speech_hints.map((hint, index) => (
                     <div
                       key={index}
-                      className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full"
+                      className="inline-flex items-center space-x-2 px-3 py-1 bg-[#2553F4]/15 text-[#5478F8] rounded-full"
                     >
                       <span className="text-sm">{hint}</span>
                       <button
                         type="button"
                         onClick={() => removeSpeechHint(hint)}
-                        className="hover:text-blue-900 dark:hover:text-blue-100"
+                        className="hover:text-[#FAFAFA]"
                       >
                         <X size={14} />
                       </button>
@@ -1570,11 +1569,11 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
               {/* Function Configuration — phone numbers for transfer & SMS */}
               {(formData.enabled_functions?.includes("transfer_to_human") ||
                 formData.enabled_functions?.includes("send_summary_sms")) && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
+                <div className="bg-[#2553F4]/10 rounded-lg p-4 border border-[#2553F4]/30">
+                  <h4 className="text-sm font-semibold text-[#FAFAFA] mb-3">
                     Phone Number Configuration
                   </h4>
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mb-4">
+                  <p className="text-xs text-[#A3A3A3] mb-4">
                     Configure phone numbers for enabled functions. Leave blank to gracefully skip the action.
                   </p>
 
@@ -1586,6 +1585,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                         label="Transfer To Number"
                         placeholder="+15551234567"
                         credentials={credentials}
+                        variant="combobox"
                       />
                       <div style={{ marginTop: '0.5rem' }}>
                         <PhoneNumberPicker
@@ -1594,6 +1594,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                           label="Transfer From (Caller ID override, optional)"
                           placeholder="+15551234567"
                           credentials={credentials}
+                          variant="combobox"
                         />
                       </div>
                     </>
@@ -1616,28 +1617,28 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
               {/* Business Hours Configuration */}
               {formData.enabled_functions?.includes('check_business_hours') && (
-                <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Business Hours</h4>
+                <div className="mt-4 p-4 rounded-lg bg-[#2553F4]/10 border border-[#2553F4]/30">
+                  <h4 className="text-sm font-semibold text-[#FAFAFA] mb-3">Business Hours</h4>
                   <div className="flex flex-wrap items-end gap-4">
                     <div>
                       <label className="block text-xs font-medium text-[#A3A3A3] mb-1">Open</label>
                       <select
                         value={formData.business_hours_start}
                         onChange={(e) => setFormData(prev => ({ ...prev, business_hours_start: parseInt(e.target.value) }))}
-                        className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="px-3 py-1.5 text-sm rounded-md border border-[#1F1F1F] bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                       >
                         {Array.from({ length: 24 }, (_, i) => (
                           <option key={i} value={i}>{`${i % 12 || 12}:00 ${i < 12 ? 'AM' : 'PM'}`}</option>
                         ))}
                       </select>
                     </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-300 pb-1.5">to</span>
+                    <span className="text-sm text-[#A3A3A3] pb-1.5">to</span>
                     <div>
                       <label className="block text-xs font-medium text-[#A3A3A3] mb-1">Close</label>
                       <select
                         value={formData.business_hours_end}
                         onChange={(e) => setFormData(prev => ({ ...prev, business_hours_end: parseInt(e.target.value) }))}
-                        className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="px-3 py-1.5 text-sm rounded-md border border-[#1F1F1F] bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                       >
                         {Array.from({ length: 24 }, (_, i) => (
                           <option key={i} value={i}>{`${i % 12 || 12}:00 ${i < 12 ? 'AM' : 'PM'}`}</option>
@@ -1666,8 +1667,8 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                             className={
                               "px-3 py-1 text-xs font-medium rounded-md border transition-colors " +
                               (active
-                                ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600")
+                                ? "bg-[#2553F4] text-white border-[#2553F4] hover:bg-[#1E46DC]"
+                                : "bg-[#0A0A0A] text-[#A3A3A3] border-[#1F1F1F] hover:bg-[#111111]")
                             }
                           >
                             {day}
@@ -1681,8 +1682,8 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
 
               {/* Email Configuration (SendGrid) */}
               {formData.enabled_functions?.includes('send_email') && (
-                <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Email Configuration (SendGrid)</h4>
+                <div className="mt-4 p-4 rounded-lg bg-[#2553F4]/10 border border-[#2553F4]/30">
+                  <h4 className="text-sm font-semibold text-[#FAFAFA] mb-3">Email Configuration (SendGrid)</h4>
                   <div className="flex flex-col gap-3">
                     <div>
                       <label className="block text-xs font-medium text-[#A3A3A3] mb-1">SendGrid API Key</label>
@@ -1691,7 +1692,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                         value={formData.sendgrid_api_key}
                         onChange={(e) => setFormData(prev => ({ ...prev, sendgrid_api_key: e.target.value, email_provider: e.target.value ? 'sendgrid' : '' }))}
                         placeholder="SG.xxxxxxxxxx"
-                        className="block w-full px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="block w-full px-3 py-2 text-sm rounded-md border border-[#1F1F1F] bg-[#0A0A0A] text-[#FAFAFA] placeholder:text-[#737373] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                       />
                     </div>
                     <div>
@@ -1701,7 +1702,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                         value={formData.email_from_address}
                         onChange={(e) => setFormData(prev => ({ ...prev, email_from_address: e.target.value }))}
                         placeholder="noreply@yourcompany.com"
-                        className="block w-full px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="block w-full px-3 py-2 text-sm rounded-md border border-[#1F1F1F] bg-[#0A0A0A] text-[#FAFAFA] placeholder:text-[#737373] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                       />
                     </div>
                     <div>
@@ -1710,8 +1711,8 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                         type="text"
                         value={formData.email_from_name}
                         onChange={(e) => setFormData(prev => ({ ...prev, email_from_name: e.target.value }))}
-                        placeholder="Defaults to employee name"
-                        className="block w-full px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Defaults to agent name"
+                        className="block w-full px-3 py-2 text-sm rounded-md border border-[#1F1F1F] bg-[#0A0A0A] text-[#FAFAFA] placeholder:text-[#737373] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors"
                       />
                     </div>
                   </div>
@@ -1749,7 +1750,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   value={formData.video_idle_url}
                   onChange={(e) => handleChange("video_idle_url", e.target.value)}
                   placeholder="/videos/sally_idle.mp4"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-4 py-2 border border-[#1F1F1F] rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors text-sm"
                 />
                 <p className="mt-1 text-xs text-[#737373]">
                   Looping video shown when the agent is listening
@@ -1764,7 +1765,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                   value={formData.video_talking_url}
                   onChange={(e) => handleChange("video_talking_url", e.target.value)}
                   placeholder="/videos/sally_talking.mp4"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-4 py-2 border border-[#1F1F1F] rounded-lg bg-[#0A0A0A] text-[#FAFAFA] focus:ring-2 focus:ring-[#2553F4] focus:border-[#2553F4] transition-colors text-sm"
                 />
                 <p className="mt-1 text-xs text-[#737373]">
                   Video shown when the agent is speaking
@@ -1797,7 +1798,7 @@ function VirtualEmployeeForm({ employee, template, onSave, onCancel }) {
                 <>
                   <Save size={18} />
                   <span className="hw-mono text-[11px] tracking-[0.16em] uppercase font-semibold">
-                    {employee ? "Save Changes" : "Create Virtual Employee"}
+                    {employee ? "Save Changes" : "Create Virtual Agent"}
                   </span>
                 </>
               )}
@@ -1856,7 +1857,7 @@ function CodeMenu({ employeeId }) {
             onClick={() => openCode("swml")}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#A3A3A3] hover:bg-[#0F0F0F]"
           >
-            <FileText size={14} className="text-blue-500" />
+            <FileText size={14} className="text-[#2553F4]" />
             View SWML
           </button>
           <button
