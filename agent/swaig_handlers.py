@@ -150,4 +150,258 @@ def clean_phone_number(number: str) -> str:
     return cleaned
 
 
-# Handler bodies and HANDLERS registry are added in Task 3.
+# ============================================================================
+# Handler functions — (config, args, raw_data) -> SwaigFunctionResult
+# ============================================================================
+
+def transfer_to_human(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Transfer call to a configured phone number."""
+    employee_id = config.get("id", "?")
+    department = args.get("department", "general")
+    reason = args.get("reason", "Requested human assistance")
+    number = config.get("transfer_number", "")
+
+    logger.info(f"[{employee_id}] Transfer requested to {number or 'NO NUMBER'} - {department}: {reason}")
+
+    if not number:
+        result = SwaigFunctionResult(
+            "I'm sorry, there's no transfer number configured right now. "
+            "Let me take a message instead so someone can call you back."
+        )
+        return result
+
+    result = SwaigFunctionResult(
+        f"I'll connect you with our {department} team now. Please hold.",
+        post_process=True,
+    )
+    # Use transfer_from if set, otherwise fall back to assigned phone_number
+    from_addr = config.get("transfer_from") or config.get("phone_number") or None
+    result.connect(number, final=True, from_addr=from_addr)
+    return result
+
+
+def send_summary_sms(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Send an SMS with the call summary to a number the caller provided."""
+    employee_id = config.get("id", "?")
+    phone_number_raw = args.get("phone_number", "")
+    message = args.get("message", "") or args.get("summary", "No message provided")
+    caller_info = args.get("caller_info", "")
+    from_number = config.get("sms_from_number", "")
+
+    # Sanitize phone number to clean E.164
+    phone_number = clean_phone_number(phone_number_raw)
+
+    logger.info(
+        f"[{employee_id}] SMS summary requested to {phone_number or 'NO NUMBER'} "
+        f"(raw: {phone_number_raw}) from {from_number or 'NO FROM NUMBER'}"
+    )
+
+    if not phone_number or len(phone_number) < 10:
+        return SwaigFunctionResult(
+            "I need a valid phone number to send the summary. "
+            "Could you please provide your full phone number including area code?"
+        )
+
+    if not from_number:
+        logger.warning(f"[{employee_id}] SMS skipped — no sms_from_number configured")
+        return SwaigFunctionResult(
+            "I'm sorry, text messaging is not set up for this agent right now. "
+            "I've noted the summary for our team."
+        )
+
+    # Build SMS body — keep concise to avoid over_data_limit
+    agent_name = config.get("name", "Agent")
+    # Truncate message to stay within SMS limits
+    max_message_len = 300
+    if len(message) > max_message_len:
+        message = message[:max_message_len] + "..."
+    parts = [f"[SignalWire] {agent_name} Call Summary:"]
+    if caller_info:
+        parts.append(f"Caller: {caller_info}")
+    parts.append(message)
+    parts.append("REPLY STOP TO STOP")
+    body = "\n".join(parts)
+
+    try:
+        result = SwaigFunctionResult(f"I've sent a text summary to {phone_number_raw}.")
+        result.send_sms(phone_number, from_number, body)
+        return result
+    except Exception as e:
+        logger.error(f"[{employee_id}] SMS send failed: {e}")
+        return SwaigFunctionResult(
+            "I'm sorry, I wasn't able to send the text message right now. "
+            "I've noted the summary for our team instead."
+        )
+
+
+def schedule_callback(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Collect callback request details and store them."""
+    employee_id = config.get("id", "?")
+    caller_name = args.get("caller_name", "")
+    callback_number = args.get("callback_number", "")
+    preferred_time = args.get("preferred_time", "")
+    reason = args.get("reason", "")
+
+    logger.info(f"[{employee_id}] Callback scheduled for {caller_name} at {preferred_time}")
+
+    result = SwaigFunctionResult(
+        f"I've scheduled a callback for {caller_name} at {preferred_time}. "
+        "Someone from our team will reach out to you then."
+    )
+    result.update_global_data({
+        "callback": {
+            "name": caller_name,
+            "number": callback_number,
+            "time": preferred_time,
+            "reason": reason[:100],
+        }
+    })
+    return result
+
+
+def check_business_hours(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Return business hours — uses config or defaults."""
+    now = datetime.now()
+    hour = now.hour
+    weekday = now.weekday()  # 0=Monday, 6=Sunday
+
+    start = config.get("business_hours_start", 9)
+    end = config.get("business_hours_end", 18)
+    days = config.get("business_days", [0, 1, 2, 3, 4])
+
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    open_days = [day_names[d] for d in sorted(days)]
+    hours_str = f"{start % 12 or 12} {'AM' if start < 12 else 'PM'} to {end % 12 or 12} {'AM' if end < 12 else 'PM'}"
+
+    if weekday in days and start <= hour < end:
+        return SwaigFunctionResult(
+            f"We are currently open. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}."
+        )
+    else:
+        return SwaigFunctionResult(
+            f"We are currently closed. Our business hours are {open_days[0]} through {open_days[-1]}, {hours_str}. "
+            "I can take a message or schedule a callback for when we reopen."
+        )
+
+
+def collect_customer_info(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Collect and store structured customer information."""
+    employee_id = config.get("id", "?")
+    name = args.get("name", "")
+    email = args.get("email", "")
+    phone = args.get("phone", "")
+    company = args.get("company", "")
+    notes = args.get("notes", "")
+
+    collected_fields = []
+    if name: collected_fields.append(f"name ({name})")
+    if email: collected_fields.append(f"email ({email})")
+    if phone: collected_fields.append(f"phone ({phone})")
+    if company: collected_fields.append(f"company ({company})")
+
+    logger.info(f"[{employee_id}] Customer info collected: {', '.join(collected_fields) or 'no fields'}")
+
+    result = SwaigFunctionResult(
+        f"Got it, I've recorded {'your' if name else 'the'} information. Is there anything else I can help with?"
+    )
+    result.update_global_data({
+        "customer_info": {
+            "name": name,
+            "email": email,
+            "phone": phone,
+            "company": company,
+            "notes": notes[:500],
+        }
+    })
+    return result
+
+
+def send_email(config: Dict[str, Any], args: Dict[str, Any], raw_data: Dict[str, Any]) -> SwaigFunctionResult:
+    """Send an email via SendGrid."""
+    employee_id = config.get("id", "?")
+    to_email = args.get("to_email", "")
+    subject = args.get("subject", "")
+    body = args.get("body", "")
+
+    sendgrid_api_key = config.get("sendgrid_api_key", "") or os.getenv("SENDGRID_API_KEY", "")
+    from_email = config.get("email_from_address", "")
+    from_name = config.get("email_from_name", "") or config.get("name", "Agent")
+
+    logger.info(f"[{employee_id}] Email requested to {to_email} from {from_email or 'NOT CONFIGURED'}")
+
+    if not to_email or "@" not in to_email:
+        return SwaigFunctionResult(
+            "I need a valid email address to send to. Could you please provide your email?"
+        )
+
+    if not sendgrid_api_key or not from_email:
+        logger.warning(f"[{employee_id}] Email skipped — SendGrid not configured")
+        result = SwaigFunctionResult(
+            "Email isn't set up for this agent yet. Let me take a note of your request instead."
+        )
+        result.update_global_data({
+            "email_requested": {
+                "to": to_email,
+                "subject": subject,
+                "body": body[:500],
+                "status": "not_configured",
+            }
+        })
+        return result
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+
+        message = Mail(
+            from_email=(from_email, from_name),
+            to_emails=to_email,
+            subject=subject or f"Follow-up from {from_name}",
+            plain_text_content=body,
+        )
+
+        sg = SendGridAPIClient(sendgrid_api_key)
+        response = sg.send(message)
+
+        logger.info(f"[{employee_id}] Email sent to {to_email}, status: {response.status_code}")
+
+        result = SwaigFunctionResult(f"I've sent an email to {to_email}.")
+        result.update_global_data({
+            "email_sent": {
+                "to": to_email,
+                "subject": subject,
+                "status": "sent",
+                "status_code": response.status_code,
+            }
+        })
+        return result
+
+    except Exception as e:
+        logger.error(f"[{employee_id}] Email send failed: {e}")
+        result = SwaigFunctionResult(
+            "I'm sorry, I wasn't able to send the email right now. I've noted your request for our team."
+        )
+        result.update_global_data({
+            "email_requested": {
+                "to": to_email,
+                "subject": subject,
+                "body": body[:500],
+                "status": "failed",
+                "error": str(e)[:200],
+            }
+        })
+        return result
+
+
+# ============================================================================
+# Registry — fn id → (schema, handler)
+# ============================================================================
+
+HANDLERS: Dict[str, tuple] = {
+    "transfer_to_human": (TRANSFER_TO_HUMAN, transfer_to_human),
+    "send_summary_sms": (SEND_SUMMARY_SMS, send_summary_sms),
+    "schedule_callback": (SCHEDULE_CALLBACK, schedule_callback),
+    "check_business_hours": (CHECK_BUSINESS_HOURS, check_business_hours),
+    "collect_customer_info": (COLLECT_CUSTOMER_INFO, collect_customer_info),
+    "send_email": (SEND_EMAIL, send_email),
+}
