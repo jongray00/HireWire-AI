@@ -120,25 +120,19 @@ SEND_EMAIL = {
 # ============================================================================
 # Post-prompt template — emitted verbatim by both the live agent (via
 # _configure_post_prompt) and every generated standalone agent.
+# Generates JSON with 6 fields: summary, caller_intent, outcome, sentiment,
+# topics, and follow_up.
 # ============================================================================
 
 POST_PROMPT_TEMPLATE = (
-    "You have just finished a phone conversation. Produce a JSON object summarizing it. "
-    "ALWAYS produce valid JSON — do not add commentary, do not wrap in code fences, "
-    "do not refuse. If the call was short, silent, or had no clear content, still "
-    "produce the JSON with reasonable defaults (empty strings, empty arrays, null where appropriate).\n"
-    "\n"
-    "Required fields (every one must appear, even if empty):\n"
-    '  "summary": 2-3 sentence summary of what happened. If nothing happened, say so plainly.\n'
-    '  "caller_intent": one sentence describing what the caller wanted. Empty string if unclear.\n'
-    '  "outcome": one of "resolved" | "transferred" | "abandoned" | "follow_up_needed" | "no_outcome".\n'
-    '  "sentiment": one of "positive" | "neutral" | "negative".\n'
-    '  "topics": array of 1-5 lowercase topic keywords. Empty array if none.\n'
-    '  "follow_up": any action items, or null.\n'
-    '  "key_quotes": array of up to 3 short verbatim quotes from the caller. Empty array if none.\n'
-    '  "next_steps": array of recommended next steps for the agent owner. Empty array if none.\n'
-    "\n"
-    "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
+    "Summarize this conversation as JSON with exactly these fields:\n"
+    '- "summary": 2-3 sentence summary of the call\n'
+    '- "caller_intent": what the caller wanted (1 sentence)\n'
+    '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
+    '- "sentiment": one of "positive", "neutral", or "negative"\n'
+    '- "topics": array of topic keyword strings\n'
+    '- "follow_up": any action items or follow-up needed (null if none)\n'
+    "Respond ONLY with the JSON object, no extra text."
 )
 
 
