@@ -194,17 +194,9 @@ class VirtualEmployeeAgent(AgentBase):
         self.set_param("temperature", temperature)
 
     def _configure_post_prompt(self):
-        """Configure post-prompt to generate a structured call summary"""
-        self.set_post_prompt(
-            "Summarize this conversation as JSON with exactly these fields:\n"
-            '- "summary": 2-3 sentence summary of the call\n'
-            '- "caller_intent": what the caller wanted (1 sentence)\n'
-            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
-            '- "sentiment": one of "positive", "neutral", or "negative"\n'
-            '- "topics": array of topic keyword strings\n'
-            '- "follow_up": any action items or follow-up needed (null if none)\n'
-            "Respond ONLY with the JSON object, no extra text."
-        )
+        """Configure post-prompt to generate a structured call summary."""
+        from agent import swaig_handlers
+        self.set_post_prompt(swaig_handlers.POST_PROMPT_TEMPLATE)
 
     def _configure_functions(self):
         """Configure which functions are enabled for this employee"""
