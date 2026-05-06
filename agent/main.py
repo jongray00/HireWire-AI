@@ -1867,15 +1867,28 @@ async def health_check():
 # Without this, the wizard agent is never mounted in production and SignalWire
 # webhooks to /swml/wizard/ return 404.
 
+# Mount the Wizard agent
+wizard = WizardAgent()
+_remount_employee_router("wizard", wizard)
+agent_instances["wizard"] = wizard
+logger.info("🧙 Wizard agent mounted at /swml/wizard")
+
 # Write credentials file for the Node SWML proxy (it reads
-# web/agent-credentials.json to construct the BasicAuth header).
+# web/agent-credentials.json to construct the BasicAuth header). Source of
+# truth is the agent's own _basic_auth: when SWML_BASIC_AUTH_PASSWORD is unset,
+# the SDK generates a random token per process — so the file must reflect what
+# the agent actually validates against, not the script's env-default fallback.
 try:
+    _wizard_user, _wizard_pass = wizard.get_basic_auth_credentials()
+    agent_credentials["username"] = _wizard_user
+    agent_credentials["password"] = _wizard_pass
+
     _credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
     _swml_path = "/swml/default"
     with open(_credentials_file, 'w') as f:
         json.dump({
-            "username": agent_credentials["username"],
-            "password": agent_credentials["password"],
+            "username": _wizard_user,
+            "password": _wizard_pass,
             "app_domain": agent_credentials["app_domain"],
             "swml_url": f"{agent_credentials['app_domain']}{_swml_path}" if agent_credentials['app_domain'] else _swml_path,
             "timestamp": datetime.now().isoformat()
@@ -1883,12 +1896,6 @@ try:
     logger.info(f"✅ Wrote credentials to: {_credentials_file}")
 except Exception as e:
     logger.warning(f"Could not write credentials file: {e}")
-
-# Mount the Wizard agent
-wizard = WizardAgent()
-_remount_employee_router("wizard", wizard)
-agent_instances["wizard"] = wizard
-logger.info("🧙 Wizard agent mounted at /swml/wizard")
 
 
 # Main entry point
