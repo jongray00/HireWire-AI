@@ -10,12 +10,13 @@ import os
 import uuid
 import json
 import logging
+import secrets
 import sqlite3
 import urllib.request
 import urllib.error
 from pathlib import Path as _Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 
 from signalwire_agents import AgentBase, SwaigFunctionResult
@@ -28,9 +29,15 @@ import uvicorn
 # Load environment variables from .env file
 load_dotenv()
 
-# Load credentials and domain from .env
+# Load credentials and domain from .env. The signalwire_agents SDK generates
+# a fresh random password per AgentBase instance when SWML_BASIC_AUTH_PASSWORD
+# is unset — so each agent in the same process disagrees with every other and
+# with the JSON file the web proxy reads. Anchor every agent to one shared
+# tuple (env if set, else a single process-wide random token) so the proxy's
+# BasicAuth header validates uniformly across wizard + every employee.
 SWML_USER = os.getenv('SWML_BASIC_AUTH_USER', 'signalwire')
-SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD', 'signalwire')
+SWML_PASSWORD = os.getenv('SWML_BASIC_AUTH_PASSWORD') or secrets.token_urlsafe(32)
+SHARED_BASIC_AUTH: Tuple[str, str] = (SWML_USER, SWML_PASSWORD)
 APP_DOMAIN = os.getenv('APP_DOMAIN', '')
 # Frontend URL the wizard uses to invoke the create-virtual-employee orchestration.
 # Vite usually runs on 5000, but macOS Control Center / AirPlay grabs 5000 so it
@@ -1377,6 +1384,9 @@ async def bypass_auth(request: Request, call_next):
 def _remount_employee_router(employee_id: str, agent: VirtualEmployeeAgent):
     """Remove old routes for an employee and mount the new agent's router."""
     prefix = f"/swml/{employee_id}"
+    # Force the shared credentials before the router is built so every handler
+    # validates against the same tuple the web proxy sends.
+    agent._basic_auth = SHARED_BASIC_AUTH
     # Remove existing routes with this prefix
     app.routes[:] = [
         r for r in app.routes
@@ -1875,20 +1885,20 @@ logger.info("🧙 Wizard agent mounted at /swml/wizard")
 
 # Write credentials file for the Node SWML proxy (it reads
 # web/agent-credentials.json to construct the BasicAuth header). Source of
-# truth is the agent's own _basic_auth: when SWML_BASIC_AUTH_PASSWORD is unset,
-# the SDK generates a random token per process — so the file must reflect what
-# the agent actually validates against, not the script's env-default fallback.
+# truth is SHARED_BASIC_AUTH — the same tuple every agent's _basic_auth is
+# pinned to in _remount_employee_router, so the proxy's header validates
+# against wizard + every employee uniformly.
 try:
-    _wizard_user, _wizard_pass = wizard.get_basic_auth_credentials()
-    agent_credentials["username"] = _wizard_user
-    agent_credentials["password"] = _wizard_pass
+    _shared_user, _shared_pass = SHARED_BASIC_AUTH
+    agent_credentials["username"] = _shared_user
+    agent_credentials["password"] = _shared_pass
 
     _credentials_file = os.path.join(os.path.dirname(__file__), '..', 'web', 'agent-credentials.json')
     _swml_path = "/swml/default"
     with open(_credentials_file, 'w') as f:
         json.dump({
-            "username": _wizard_user,
-            "password": _wizard_pass,
+            "username": _shared_user,
+            "password": _shared_pass,
             "app_domain": agent_credentials["app_domain"],
             "swml_url": f"{agent_credentials['app_domain']}{_swml_path}" if agent_credentials['app_domain'] else _swml_path,
             "timestamp": datetime.now().isoformat()
