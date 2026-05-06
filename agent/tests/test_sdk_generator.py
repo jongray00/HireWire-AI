@@ -96,3 +96,48 @@ def test_full_fixture_swml_matches(monkeypatch):
         f"full SWML mismatch:\nlive={json.dumps(live, indent=2, sort_keys=True)[:5000]}\n"
         f"generated={json.dumps(generated, indent=2, sort_keys=True)[:5000]}"
     )
+
+
+def test_handlers_block_matches_source_module():
+    """The HANDLERS_START..HANDLERS_END region of the generated file must be
+    bit-equal to the post-imports section of agent/swaig_handlers.py (cached
+    via _read_handlers_source). Catches drift when one is edited without the other."""
+    from agent.main import _read_handlers_source, _HANDLERS_START, _HANDLERS_END
+
+    config = _load("employee_no_functions.json")
+    code = _generate_sdk_code(config)
+
+    start = code.index(_HANDLERS_START)
+    end = code.index(_HANDLERS_END)
+    embedded = code[start + len(_HANDLERS_START):end].strip()
+    expected = _read_handlers_source().strip()
+    assert embedded == expected, "Handlers source drifted between module and generator embedding"
+
+
+def test_generated_file_imports_in_fresh_interpreter(tmp_path):
+    """Write generated code to disk, exec it in a subprocess with no agent
+    package on sys.path. Proves the generated file is self-contained."""
+    import os
+    import subprocess
+    import sys
+
+    config = _load("employee_minimal.json")
+    code = _generate_sdk_code(config)
+    p = tmp_path / "generated_agent.py"
+    p.write_text(code)
+
+    # Run with uv run to ensure signalwire-agents is on the path via .venv.
+    result = subprocess.run(
+        ["uv", "run", "python", "-c",
+         f"import importlib.util, sys; "
+         f"spec = importlib.util.spec_from_file_location('gen', r'{p}'); "
+         f"m = importlib.util.module_from_spec(spec); "
+         f"spec.loader.exec_module(m); "
+         f"print('ok')"],
+        cwd=str(tmp_path),
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, (
+        f"generated file failed to import:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+    assert "ok" in result.stdout
