@@ -259,7 +259,7 @@ class VirtualEmployeeAgent(AgentBase):
                 if len(doc_descriptions) > 1:
                     routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
                     routing += "\nChoose the most relevant one based on the caller's question."
-                    self.add_pom_section("Knowledge Base Routing", body=routing)
+                    self.prompt_add_section("Knowledge Base Routing", body=routing)
             else:
                 if not documents:
                     logger.info(f"  search_knowledge enabled but no documents uploaded")
@@ -1305,11 +1305,28 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
             "        if len(doc_descriptions) > 1:",
             "            routing = 'You have access to these knowledge bases:\\n' + '\\n'.join(doc_descriptions)",
             "            routing += '\\nChoose the most relevant one based on the caller\\'s question.'",
-            "            self.add_pom_section('Knowledge Base Routing', body=routing)",
+            "            self.prompt_add_section('Knowledge Base Routing', body=routing)",
         ]
         ds_block = "\n".join(ds_lines)
     else:
         ds_block = "        # search_knowledge not enabled — no DataSphere setup."
+
+    # Build the SWAIG removal block — mirrors _configure_functions's removal loop:
+    # when enabled_functions is non-empty, all SWAIG tools NOT in active_fns are removed.
+    # This is necessary because add_skill("datasphere_serverless") registers DataMap tools
+    # that are not in enabled_functions and must be removed to match the live agent.
+    if enabled_functions:
+        keep_list_repr = json.dumps(active_fns)
+        removal_block = (
+            "        # Mirror _configure_functions: remove SWAIG tools not in the enabled list.\n"
+            f"        _keep = {keep_list_repr}\n"
+            "        _all = list(self._tool_registry.get_all_functions().keys())\n"
+            "        for _fn in _all:\n"
+            "            if _fn not in _keep:\n"
+            "                self._tool_registry.remove_function(_fn)\n"
+        )
+    else:
+        removal_block = "        # enabled_functions empty — no removal loop (all tools stay).\n"
 
     # Personality / prompt / voice block — mirrors VirtualEmployeeAgent.__init__
     # for the parts that affect SWML output.
@@ -1401,7 +1418,7 @@ class {class_name}(AgentBase):
 {sms_guideline_emit}        self.prompt_add_section("Voice Interaction Guidelines", bullets=guidelines)
         self.set_post_prompt(POST_PROMPT_TEMPLATE)
 {ds_block}
-
+{removal_block}
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
         # Enable live transcription with the agent's primary language.
         self.add_verb("live_transcribe", {{
