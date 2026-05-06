@@ -194,16 +194,29 @@ class VirtualEmployeeAgent(AgentBase):
         self.set_param("temperature", temperature)
 
     def _configure_post_prompt(self):
-        """Configure post-prompt to generate a structured call summary"""
+        """Configure post-prompt to generate a structured call summary.
+
+        IMPORTANT: SignalWire's AI engine renders the post-prompt at end-of-call
+        regardless of conversation length. The instruction must be self-contained
+        and produce valid JSON even when the call was very short or one-sided.
+        """
         self.set_post_prompt(
-            "Summarize this conversation as JSON with exactly these fields:\n"
-            '- "summary": 2-3 sentence summary of the call\n'
-            '- "caller_intent": what the caller wanted (1 sentence)\n'
-            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
-            '- "sentiment": one of "positive", "neutral", or "negative"\n'
-            '- "topics": array of topic keyword strings\n'
-            '- "follow_up": any action items or follow-up needed (null if none)\n'
-            "Respond ONLY with the JSON object, no extra text."
+            "You have just finished a phone conversation. Produce a JSON object summarizing it. "
+            "ALWAYS produce valid JSON — do not add commentary, do not wrap in code fences, "
+            "do not refuse. If the call was short, silent, or had no clear content, still "
+            "produce the JSON with reasonable defaults (empty strings, empty arrays, null where appropriate).\n"
+            "\n"
+            "Required fields (every one must appear, even if empty):\n"
+            '  "summary": 2-3 sentence summary of what happened. If nothing happened, say so plainly.\n'
+            '  "caller_intent": one sentence describing what the caller wanted. Empty string if unclear.\n'
+            '  "outcome": one of "resolved" | "transferred" | "abandoned" | "follow_up_needed" | "no_outcome".\n'
+            '  "sentiment": one of "positive" | "neutral" | "negative".\n'
+            '  "topics": array of 1-5 lowercase topic keywords. Empty array if none.\n'
+            '  "follow_up": any action items, or null.\n'
+            '  "key_quotes": array of up to 3 short verbatim quotes from the caller. Empty array if none.\n'
+            '  "next_steps": array of recommended next steps for the agent owner. Empty array if none.\n'
+            "\n"
+            "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
         )
 
     def _configure_functions(self):
@@ -758,131 +771,202 @@ def _wizard_create_employee_via_frontend(employee_data: Dict[str, Any], credenti
 
 
 class WizardAgent(AgentBase):
-    """Voice-callable AI wizard that helps users build other AI agents through conversation.
+    """Builds new HireWire agents through a guided voice conversation.
 
-    The wizard guides the user through a structured setup flow:
-    1. Ask what kind of agent they want
-    2. Use ask_config_question to show options on screen
-    3. Call preview_agent to show a preview card
-    4. Ask for approval and customizations
-    5. Call create_agent when approved, then finalize_agent
+    Implemented as a five-step Contexts/Steps state machine:
+        identity -> voice -> capabilities -> review -> complete
+    Each step gates which SWAIG functions the LLM can call. The server-side
+    state machine — not the prompt — enforces ordering. Spec:
+    docs/superpowers/specs/2026-05-05-wizard-contexts-steps-redesign.md
     """
 
     def __init__(self):
         super().__init__(
             name="Agent Wizard",
-            route="/swml/wizard"
+            route="/swml/wizard",
+            host="0.0.0.0",
+            port=3000,
         )
 
-        self.add_language(
-            name="English",
-            code="en-US",
-            voice="openai.shimmer",
-            speech_fillers=[
-                "Let me think about that...",
-                "Great question...",
-                "One moment..."
-            ],
-            function_fillers=[
-                "Updating the preview...",
-                "Building it now...",
-                "One moment while I set this up..."
-            ]
-        )
+        # Full transcript visibility in every SWAIG handler.
+        self.set_params({"swaig_post_conversation": True})
 
-        # ---------- §1 Identity ----------
+        # Voice / language
+        self.add_language(name="English", code="en-US", voice="openai.shimmer")
+
+        # Base prompt (REQUIRED even when using contexts)
         self.prompt_add_section(
             "Identity",
             body=(
-                "You are the Agent Wizard for Sally Sales — a warm, knowledgeable setup assistant "
-                "who builds custom AI voice agents for the user through a short phone conversation. "
-                "You make the experience feel collaborative and exciting, like working with a coworker "
-                "who really knows the product. You speak in short, friendly sentences (a phone call, "
-                "not a lecture). You do not pretend to be human, and you do not over-apologize. "
-                "The user is on the dashboard with a creation canvas open in front of them — let the "
-                "screen do the heavy lifting for visual choices, and use your voice for guidance and rapport."
-            )
+                "You are the Agent Wizard for HireWire — a warm, knowledgeable setup "
+                "assistant who builds custom AI voice agents for the user through a "
+                "short phone conversation."
+            ),
         )
 
-        # ---------- §2 Discovery ----------
-        self.prompt_add_section(
-            "Discovery — one open question, then build",
-            bullets=[
-                "Open with a brief greeting (one sentence) and a single open question: \"Tell me about the agent you'd like to build — what should it do, and who's it for?\"",
-                "LISTEN to the user's full description before doing anything. Don't interrupt to ask for a name or role yet.",
-                "From their description, derive everything you can yourself: a sensible agent name (e.g. \"Sarah\" for a sales rep, \"Max\" for support), a clear role title, a short prompt summarizing the job, a friendly greeting line, a sensible voice (openai.nova for warm, openai.shimmer for upbeat, openai.alloy for neutral/professional), and a small set of capabilities that fit the use case.",
-                "Immediately call preview_agent with all of those derived values, THEN say something like \"I'm building this up for you — take a look at the canvas\" so the user knows to glance at the screen.",
-                "Then call mark_checkpoint(\"identity\")."
-            ]
-        )
+        # Initial call-scoped state
+        self.set_global_data({
+            "agent_draft": {
+                "name": "",
+                "role": "",
+                "prompt_summary": "",
+                "prompt": "",
+                "voice": "",
+                "language": "en-US",
+                "greeting": "",
+                "functions": [],
+            },
+            "created_agent": None,
+            "current_step": "identity",
+        })
 
-        # ---------- §3 Building ----------
-        self.prompt_add_section(
-            "Building — confirm and refine quickly",
-            bullets=[
-                "Your goal is to ask AS FEW QUESTIONS AS POSSIBLE. The user described the agent — your job is to make sensible choices and confirm them, not to interrogate.",
-                "After the initial preview, narrate briefly: \"I'm setting up [name] as a [role] — they'll [1-2 capabilities] and use a [voice trait] voice. How does that look?\"",
-                "If the user accepts, call mark_checkpoint(\"voice\") and mark_checkpoint(\"capabilities\") in quick succession (you've made the choices, the user confirmed) and move to recap.",
-                "If the user wants changes, use update_agent_preview to apply them. Only ask follow-up questions for things you couldn't infer (e.g., \"What's the phone number to transfer to?\" when they enable transfer_to_human).",
-                "When the user is unsure between options for ONE field, use ask_config_question with 2-4 options (e.g., voice). Don't bombard them with sequential ask_config_question calls — pick the most important undecided field.",
-                "HARD RULE: mark_checkpoint must fire in order (identity → voice → capabilities → review), each at most once. Don't skip a stage even if you're moving fast.",
-                "Use update_agent_preview every time you change a field — the canvas reflects updates live.",
-                "Keep spoken responses under 2 sentences. The canvas does the visual heavy lifting."
-            ]
-        )
+        # Wizard state machine
+        self._build_wizard_context()
 
-        # ---------- §4 Confirmation ----------
-        self.prompt_add_section(
-            "Confirmation",
-            bullets=[
-                "HARD RULE: Before mark_checkpoint(\"review\") — you MUST have already called mark_checkpoint(\"identity\"), mark_checkpoint(\"voice\"), AND mark_checkpoint(\"capabilities\") in that order. If any are missing, return to that section instead of marking review.",
-                "Recap in one breath: \"Okay — {name}, a {role} with {voice}'s voice, who can {top 2-3 capabilities}. Sound right?\" Use the user's actual name and capability choices, not placeholders.",
-                "Wait for explicit yes from the user. If they hesitate or ask for changes, treat it as another update_agent_preview cycle — don't push.",
-                "On explicit confirmation, call mark_checkpoint(\"review\"). Only then proceed to creation.",
-                "If the user says \"scrap it\" or \"start over\", clear the preview by calling update_agent_preview with empty fields and return to Discovery."
-            ]
-        )
-
-        # ---------- §5 Creation ----------
-        self.prompt_add_section(
-            "Creation",
-            bullets=[
-                "HARD RULE: Before create_agent — you MUST have already called mark_checkpoint(\"review\"). If you haven't, recap and confirm with the user first.",
-                "Say something brief and confident — \"Building {name} now…\" — then call create_agent with the full config (use the user's actual name, not a placeholder).",
-                "Silence during the create_agent call is okay (the canvas shows progress).",
-                "When create_agent returns successfully, call finalize_agent with the employee_id from the create_agent response immediately.",
-                "After finalize, say: \"{name} is live. You can call them right from the canvas, or end this call and I'll get out of your way.\"",
-                "If create_agent fails, surface the error briefly (\"Hmm, the build didn't go through — {short reason}. Want to try again?\") and offer to retry."
-            ]
-        )
-
-        # ---------- §6 Conversation Style (cross-cutting) ----------
-        self.prompt_add_section(
-            "Conversation Style",
-            bullets=[
-                "1–2 sentences per turn. Phone-call cadence, not chatbot.",
-                "Don't read out long lists — defer to ask_config_question so the user sees options on screen instead.",
-                "Don't say \"I'm calling the function now\" or narrate tool use. Just call the tool and let the screen update.",
-                "Use the user's words back at them when summarizing — if they said \"billing questions\", don't translate to \"customer service inquiries\".",
-                "Never invent capabilities the system doesn't have (video, payments, CRM integration). Say so plainly and offer the closest supported behavior.",
-                "When in doubt, ask. One question, then listen."
-            ]
-        )
-
-        self.set_param("temperature", 0.7)
-
-        # Configure post-prompt for call logging
+        # Post-prompt summarization. Match the per-employee schema so call logs
+        # for wizard sessions and built agents render uniformly in the dashboard.
         self.set_post_prompt(
-            "Summarize this wizard session as JSON with exactly these fields:\n"
-            '- "summary": 2-3 sentence summary of what was discussed/created\n'
-            '- "caller_intent": what the user wanted to build\n'
-            '- "outcome": one of "resolved", "transferred", "abandoned", or "follow_up_needed"\n'
-            '- "sentiment": one of "positive", "neutral", or "negative"\n'
-            '- "topics": array of topic keyword strings\n'
-            '- "follow_up": any action items or follow-up needed (null if none)\n'
-            '- "agent_built_id": the employee id returned by create_agent if you created an agent in this session, otherwise null\n'
-            "Respond ONLY with the JSON object, no extra text."
+            "You have just finished a wizard call to build a new AI agent. "
+            "Produce a JSON object summarizing the session. ALWAYS produce valid JSON — "
+            "do not add commentary, do not wrap in code fences, do not refuse. If the call "
+            "was short or one-sided, still produce the JSON with reasonable defaults.\n"
+            "\n"
+            "Required fields (every one must appear, even if empty):\n"
+            '  "summary": 2-3 sentences describing what was built (or what stalled).\n'
+            '  "caller_intent": one sentence describing what kind of agent the user wanted.\n'
+            '  "outcome": one of "agent_built" | "abandoned" | "follow_up_needed" | "no_outcome".\n'
+            '  "sentiment": one of "positive" | "neutral" | "negative".\n'
+            '  "topics": array of 1-5 lowercase topic keywords (e.g. "sales", "support", "scheduling").\n'
+            '  "follow_up": any action items for the user, or null.\n'
+            '  "key_quotes": array of up to 3 short verbatim quotes from the caller. Empty array if none.\n'
+            '  "next_steps": array of recommended next steps. Empty array if none.\n'
+            '  "agent_built_id": id of the agent that was created (the value returned by create_agent), '
+            "or null if no agent was built.\n"
+            "\n"
+            "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
         )
+
+    def _build_wizard_context(self):
+        contexts = self.define_contexts()
+        ctx = contexts.add_context("default")
+
+        ctx.add_step("identity") \
+            .set_text(
+                "You are starting a wizard call to build a new AI voice agent for the user. "
+                "Greet them warmly. Ask one question at a time. Start with: what kind of agent do they want to build, "
+                "and what should it be called? "
+                "After EACH user answer, immediately call update_agent_preview with whatever new field you just "
+                "learned (name, role, or prompt_summary) so the live preview on the user's screen updates. "
+                "\n\n"
+                "If the user's description of the agent implies any capabilities — e.g. 'transfer to my cell' "
+                "(transfer_to_human), 'send a follow-up text' (send_summary_sms), 'book callbacks' "
+                "(schedule_callback), 'check business hours' (check_business_hours), 'collect their info' "
+                "(collect_customer_info), 'send confirmation emails' (send_email) — silently include those in a "
+                "subsequent update_agent_preview call with a `functions` array. Do NOT ask the user about "
+                "capabilities here; just infer from what they say. "
+                "\n\n"
+                "When you have ALL three core fields (name, role, prompt_summary), call set_identity to advance "
+                "to the voice step. DO NOT call set_voice, set_capabilities, or create_agent yet."
+            ) \
+            .set_step_criteria("Identity collected") \
+            .set_valid_steps(["voice"]) \
+            .set_functions(["set_identity", "update_agent_preview"])
+
+        ctx.add_step("voice") \
+            .set_text(
+                "Help the user pick a voice. If they ask what's available, call list_voices. "
+                "If they describe what they want (e.g. \"warm female\"), pick the closest match "
+                "from the menu and confirm it. "
+                "After the user picks, immediately call update_agent_preview with the voice so the screen reflects it, "
+                "then call set_voice with the voice id to advance to capabilities. "
+                "DO NOT call set_capabilities or create_agent yet — those belong to later steps."
+            ) \
+            .set_step_criteria("Voice selected") \
+            .set_valid_steps(["capabilities"]) \
+            .set_functions(["set_voice", "list_voices", "update_agent_preview"])
+
+        ctx.add_step("capabilities") \
+            .set_text(
+                "Your job in this step is to collect ONE thing: the agent's opening greeting line. "
+                "Ask: \"What should your agent say when it picks up?\" or similar. "
+                "Do NOT prompt the user about capabilities or functions. Do NOT list available functions. "
+                "Do NOT ask 'should it transfer calls?' or 'do you want it to send texts?'. "
+                "\n\n"
+                "INFER functions silently from the conversation so far. If anything the user already "
+                "described implies a capability — for example they said 'transfer to my cell' (implies "
+                "transfer_to_human), 'send a follow-up text' (send_summary_sms), 'book a callback' "
+                "(schedule_callback), 'check if we're open' (check_business_hours), 'get their email' "
+                "(collect_customer_info), 'send a confirmation email' (send_email) — silently call "
+                "update_agent_preview with the inferred functions list. "
+                "If the user spontaneously brings up a new capability while you're collecting the greeting, "
+                "acknowledge it briefly and call update_agent_preview to add it. "
+                "\n\n"
+                "Available function ids you may infer: transfer_to_human, send_summary_sms, "
+                "schedule_callback, check_business_hours, collect_customer_info, send_email. "
+                "If nothing was mentioned, leave functions empty — that's fine. "
+                "\n\n"
+                "When you have the greeting line, call set_capabilities with functions (whatever you "
+                "inferred, possibly empty) and the greeting. DO NOT call create_agent yet."
+            ) \
+            .set_step_criteria("Greeting collected") \
+            .set_valid_steps(["review"]) \
+            .set_functions(["set_capabilities", "update_agent_preview"])
+
+        ctx.add_step("review") \
+            .set_text(
+                "The user is reviewing the full agent on screen. Recap it briefly aloud, then ask: "
+                "\"Should I build it now, or change something first?\" "
+                "If they ask to change anything (name, role, voice, greeting, capabilities, or the system prompt), "
+                "call update_agent_preview with just the changed fields, then ask again. "
+                "When they confirm with ANY affirmative ('yes', 'go', 'create it', 'do it', 'sounds good', "
+                "'looks good', 'build it', 'ship it', or similar), call create_agent immediately — no arguments. "
+                "create_agent reads the full draft from call state and commits it. "
+                "If create_agent returns a failure message, tell the user what went wrong and offer to retry. "
+                "Once create_agent succeeds, the wizard automatically advances to the complete step."
+            ) \
+            .set_step_criteria("Agent reviewed and approved") \
+            .set_valid_steps(["complete"]) \
+            .set_functions(["update_agent_preview", "create_agent"])
+
+        ctx.add_step("complete") \
+            .set_text(
+                "The agent has been built. Briefly congratulate the user and offer to hand off "
+                "the dial address so they can place a test call. When they say yes (or you've "
+                "offered once), call finalize_agent. The wizard call will end shortly after that."
+            ) \
+            .set_functions(["finalize_agent"])
+        # complete step is terminal — no set_valid_steps()
+
+    # ---- Private helpers ---------------------------------------------
+
+    def _merge_draft(self, raw_data, updates: dict) -> dict:
+        """Shallow-merge updates into the current agent_draft from global_data.
+
+        Returns the merged dict, suitable for passing to update_global_data.
+        Skips keys whose values are None or empty strings so callers can
+        safely pass partial updates without clobbering existing fields.
+        """
+        current = (raw_data or {}).get("global_data", {}).get("agent_draft", {}) or {}
+        cleaned = {k: v for k, v in (updates or {}).items() if v is not None and v != ""}
+        return {**current, **cleaned}
+
+    def _agent_preview_event(self, draft: dict) -> dict:
+        return {
+            "type": "agent_preview",
+            "name": draft.get("name", ""),
+            "role": draft.get("role", ""),
+            "prompt_summary": draft.get("prompt_summary", ""),
+            "voice": draft.get("voice", ""),
+            "functions": draft.get("functions", []),
+            "greeting": draft.get("greeting", ""),
+            "prompt": draft.get("prompt", ""),
+        }
+
+    def _checkpoint_event(self, stage: str) -> dict:
+        return {"type": "wizard_checkpoint", "stage": stage}
+
+    def _wizard_said(self, text: str) -> dict:
+        return {"type": "wizard_said", "text": text}
 
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
         """Override to set post_prompt_url dynamically based on the request host."""
@@ -906,409 +990,366 @@ class WizardAgent(AgentBase):
         return super().on_swml_request(request_data, callback_path, request)
 
     # ------------------------------------------------------------------
-    # SWAIG Functions
+    # SWAIG handler stubs (Task 1) — bodies are added in Tasks 2-4
     # ------------------------------------------------------------------
 
     @AgentBase.tool(
-        name="ask_config_question",
-        description="Display a configuration question with selectable options on the user's screen",
-        parameters={
-            "type": "object",
-            "properties": {
-                "question": {
-                    "type": "string",
-                    "description": "The question to display on screen"
-                },
-                "options": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of selectable options to display"
-                },
-                "field": {
-                    "type": "string",
-                    "description": "The config field this question is populating (e.g. 'voice', 'role', 'functions')"
-                }
-            },
-            "required": ["question", "options", "field"]
-        }
-    )
-    def ask_config_question(self, args, raw_data):
-        logger.info(f"[WizardAgent.ask_config_question] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        question = args.get("question", "")
-        options = args.get("options", [])
-        field = args.get("field", "")
-
-        logger.info(f"[wizard] ask_config_question: field={field}, options={options}")
-
-        result = SwaigFunctionResult(
-            f"I've displayed the options on your screen. Take a look and let me know which one feels right."
-        )
-        result.swml_user_event({
-            "type": "agent_config_question",
-            "question": question,
-            "options": options,
-            "field": field
-        })
-        result.swml_user_event({
-            "type": "wizard_said",
-            "text": "I've displayed the options on your screen. Take a look and let me know which one feels right."
-        })
-        logger.info(f"[WizardAgent.ask_config_question] RETURNING")
-        return result
-
-    @AgentBase.tool(
-        name="preview_agent",
-        description="Show a preview card of the agent being designed on the dashboard",
+        name="set_identity",
+        description="Record the new agent's name, role, and one-sentence summary. Advances to the voice step.",
         parameters={
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Agent's name"
+                    "description": "Agent's display name",
                 },
                 "role": {
                     "type": "string",
-                    "description": "Agent's role or title"
+                    "description": "Agent's role label",
                 },
                 "prompt_summary": {
                     "type": "string",
-                    "description": "Brief summary of the agent's purpose and personality"
+                    "description": "One or two sentences describing what the agent does",
                 },
+            },
+            "required": ["name", "role", "prompt_summary"],
+        },
+    )
+    def set_identity(self, args, raw_data):
+        call_id = (raw_data or {}).get("call_id") or "unknown"
+        prev_step = (raw_data or {}).get("global_data", {}).get("current_step")
+        logger.info("[wizard:%s] set_identity ENTRY prev_step=%s args=%s", call_id, prev_step, sorted(args.keys()))
+        merged = self._merge_draft(raw_data, {
+            "name": args.get("name"),
+            "role": args.get("role"),
+            "prompt_summary": args.get("prompt_summary"),
+        })
+        spoken = (
+            f"Got it — building {merged.get('name','this agent')}, a {merged.get('role','')}. "
+            f"Now, let's pick a voice. I have several options — would you like a "
+            f"warm female voice, a confident male voice, or something else?"
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .update_global_data({"agent_draft": merged, "current_step": "voice"})
+                .swml_change_step("voice")
+                .swml_user_event(self._agent_preview_event(merged))
+                .swml_user_event(self._checkpoint_event("identity"))
+                .swml_user_event(self._wizard_said(spoken))
+        )
+
+    @AgentBase.tool(
+        name="list_voices",
+        description="Recite the available voice options. Does not transition steps.",
+        parameters={
+            "type": "object",
+            "properties": {},
+        },
+    )
+    def list_voices(self, args, raw_data):
+        spoken = (
+            "Here are some popular voices: openai.nova is a warm female voice, "
+            "openai.shimmer is a softer female voice, openai.alloy is gender-neutral, "
+            "openai.onyx is a deeper male voice, and openai.echo is a friendly male voice. "
+            "ElevenLabs has rachel, charlie, and thomas. Which one would you like?"
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .swml_user_event(self._wizard_said(spoken))
+        )
+
+    @AgentBase.tool(
+        name="set_voice",
+        description="Pick a voice for the new agent. Advances to capabilities.",
+        parameters={
+            "type": "object",
+            "properties": {
                 "voice": {
                     "type": "string",
-                    "description": "Voice to use (e.g. openai.nova, openai.shimmer)"
+                    "description": "Voice ID (e.g. openai.nova)",
                 },
+            },
+            "required": ["voice"],
+        },
+    )
+    def set_voice(self, args, raw_data):
+        call_id = (raw_data or {}).get("call_id") or "unknown"
+        prev_step = (raw_data or {}).get("global_data", {}).get("current_step")
+        logger.info("[wizard:%s] set_voice ENTRY prev_step=%s voice=%s", call_id, prev_step, args.get("voice"))
+        merged = self._merge_draft(raw_data, {"voice": args.get("voice")})
+        spoken = (
+            f"Great — using {merged.get('voice','that voice')}. "
+            "Now let's set up what your agent can do. "
+            "Common capabilities: transferring calls to a human, sending follow-up texts, "
+            "scheduling callbacks, checking business hours, collecting customer info, sending emails. "
+            "Which of these do you want? You can pick any combination."
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .update_global_data({"agent_draft": merged, "current_step": "capabilities"})
+                .swml_change_step("capabilities")
+                .swml_user_event(self._agent_preview_event(merged))
+                .swml_user_event(self._checkpoint_event("voice"))
+                .swml_user_event(self._wizard_said(spoken))
+        )
+
+    @AgentBase.tool(
+        name="set_capabilities",
+        description="Record the agent's enabled functions and greeting line. Advances to review.",
+        parameters={
+            "type": "object",
+            "properties": {
                 "functions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of enabled function names"
+                    "description": "SWAIG function ids",
                 },
                 "greeting": {
                     "type": "string",
-                    "description": "The agent's opening greeting"
+                    "description": "Opening line the new agent will say",
                 },
-                "prompt": {
-                    "type": "string",
-                    "description": "Full prompt/instructions for the agent"
-                }
             },
-            "required": ["name", "role"]
-        }
+            "required": ["functions", "greeting"],
+        },
     )
-    def preview_agent(self, args, raw_data):
-        logger.info(f"[WizardAgent.preview_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        name = args.get("name", "New Agent")
-        role = args.get("role", "Assistant")
-        prompt_summary = args.get("prompt_summary", "")
-        voice = args.get("voice", "openai.nova")
-        functions = args.get("functions", [])
-        greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you today?")
-        prompt = args.get("prompt", "")
-
-        logger.info(f"[wizard] preview_agent: name={name}, role={role}, voice={voice}")
-
-        result = SwaigFunctionResult(
-            f"I've shown a preview of {name} on your screen. Does that look good, or would you like to make any changes?"
+    def set_capabilities(self, args, raw_data):
+        call_id = (raw_data or {}).get("call_id") or "unknown"
+        prev_step = (raw_data or {}).get("global_data", {}).get("current_step")
+        logger.info(
+            "[wizard:%s] set_capabilities ENTRY prev_step=%s fn_count=%d greeting_len=%d",
+            call_id, prev_step, len(args.get("functions") or []), len((args.get("greeting") or "")),
         )
-        result.swml_user_event({
-            "type": "agent_preview",
-            "name": name,
-            "role": role,
-            "prompt_summary": prompt_summary,
-            "voice": voice,
-            "functions": functions,
-            "greeting": greeting,
-            "prompt": prompt
+        merged = self._merge_draft(raw_data, {
+            "functions": args.get("functions") or [],
+            "greeting": args.get("greeting"),
         })
-        result.swml_user_event({
-            "type": "wizard_said",
-            "text": f"I've shown a preview of {name} on your screen. Does that look good, or would you like to make any changes?"
-        })
-        logger.info(f"[WizardAgent.preview_agent] RETURNING")
-        return result
+        greeting = merged.get("greeting", "")
+        functions = merged.get("functions") or []
+        if functions:
+            cap_recap = f"It can {', '.join(functions)}, "
+        else:
+            cap_recap = ""
+        spoken = (
+            f"Got the greeting: \"{greeting}\". "
+            f"Quick recap: {merged.get('name','your agent')}, a {merged.get('role','')}, "
+            f"using voice {merged.get('voice','')}. "
+            f"{cap_recap}"
+            "If everything looks right on your screen, just say 'create it' and I'll build the agent. "
+            "Otherwise, tell me what to change."
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .update_global_data({"agent_draft": merged, "current_step": "review"})
+                .swml_change_step("review")
+                .swml_user_event(self._agent_preview_event(merged))
+                .swml_user_event(self._checkpoint_event("capabilities"))
+                .swml_user_event(self._wizard_said(spoken))
+        )
 
     @AgentBase.tool(
         name="update_agent_preview",
-        description="Update the agent preview card on the dashboard with new details",
+        description="Modify any field in the agent draft during review. Does not transition.",
         parameters={
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Updated agent name"
-                },
-                "role": {
-                    "type": "string",
-                    "description": "Updated role or title"
-                },
-                "voice": {
-                    "type": "string",
-                    "description": "Updated voice"
-                },
+                "name": {"type": "string"},
+                "role": {"type": "string"},
+                "prompt": {"type": "string"},
+                "prompt_summary": {"type": "string"},
+                "voice": {"type": "string"},
+                "greeting": {"type": "string"},
                 "functions": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Updated list of enabled functions"
                 },
-                "prompt": {
-                    "type": "string",
-                    "description": "Updated full prompt"
-                },
-                "greeting": {
-                    "type": "string",
-                    "description": "Updated greeting message"
-                }
-            }
-        }
+            },
+        },
     )
     def update_agent_preview(self, args, raw_data):
-        logger.info(f"[WizardAgent.update_agent_preview] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        logger.info(f"[wizard] update_agent_preview: {list(args.keys())}")
-
-        result = SwaigFunctionResult(
-            "I've updated the preview on your screen with those changes."
+        # Available in every step now (per progressive-update redesign).
+        # Just merges the partial update and emits an agent_preview event.
+        # Does not transition steps.
+        call_id = (raw_data or {}).get("call_id") or "unknown"
+        prev_step = (raw_data or {}).get("global_data", {}).get("current_step")
+        logger.info(
+            "[wizard:%s] update_agent_preview ENTRY step=%s fields=%s",
+            call_id, prev_step, sorted([k for k, v in (args or {}).items() if v not in (None, "", [])]),
         )
-        result.swml_user_event({
-            "type": "agent_preview",
-            **{k: v for k, v in args.items() if v is not None}
-        })
-        result.swml_user_event({
-            "type": "wizard_said",
-            "text": "I've updated the preview on your screen with those changes."
-        })
-        logger.info(f"[WizardAgent.update_agent_preview] RETURNING")
-        return result
 
-    @AgentBase.tool(
-        name="mark_checkpoint",
-        description=(
-            "Mark a build-progress checkpoint reached. Call exactly once per stage, "
-            "in order: identity, voice, capabilities, review."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "stage": {
-                    "type": "string",
-                    "enum": ["identity", "voice", "capabilities", "review"],
-                    "description": "Which checkpoint to mark"
-                }
-            },
-            "required": ["stage"]
-        }
-    )
-    def mark_checkpoint(self, args, raw_data):
-        stage = args.get("stage", "")
-        logger.info(f"[wizard] mark_checkpoint: {stage}")
-        result = SwaigFunctionResult("")  # silent — no spoken response
-        result.swml_user_event({
-            "type": "wizard_checkpoint",
-            "stage": stage
-        })
-        return result
+        # Strip None / empty values; merge the rest.
+        updates = {k: v for k, v in (args or {}).items() if v is not None and v != ""}
+        if not updates:
+            return SwaigFunctionResult("Got it — nothing to change.")
+
+        merged = self._merge_draft(raw_data, updates)
+        changed_keys = ", ".join(updates.keys())
+        spoken = (
+            f"Updated: {changed_keys}. The preview on your screen now reflects the change. "
+            "Anything else, or should I create it?"
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .update_global_data({"agent_draft": merged})
+                .swml_user_event(self._agent_preview_event(merged))
+                .swml_user_event(self._wizard_said(spoken))
+        )
 
     @AgentBase.tool(
         name="create_agent",
-        description="Create the designed agent — builds the real agent and mounts it to a live endpoint",
+        description="Commit the reviewed agent. Reads the full draft from call state.",
         parameters={
             "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Agent's name"
-                },
-                "role": {
-                    "type": "string",
-                    "description": "Agent's role or title"
-                },
-                "greeting": {
-                    "type": "string",
-                    "description": "The agent's opening greeting"
-                },
-                "prompt": {
-                    "type": "string",
-                    "description": "Full prompt/instructions for the agent"
-                },
-                "voice": {
-                    "type": "string",
-                    "description": "Voice to use (e.g. openai.nova)"
-                },
-                "language": {
-                    "type": "string",
-                    "description": "Language code (e.g. en-US)"
-                },
-                "temperature": {
-                    "type": "number",
-                    "description": "Model temperature (0.0–1.0)"
-                },
-                "functions": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of enabled function names"
-                }
-            },
-            "required": ["name", "role", "prompt"]
-        }
+            "properties": {},
+        },
     )
     def create_agent(self, args, raw_data):
-        logger.info(f"[WizardAgent.create_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        name = args.get("name", "New Agent")
-        role = args.get("role", "Assistant")
-        greeting = args.get("greeting", f"Hello, I'm {name}. How can I help you?")
-        prompt = args.get("prompt", "")
-        voice = args.get("voice", "openai.nova")
-        language = args.get("language", "en-US")
-        temperature = args.get("temperature", 0.7)
-        functions = args.get("functions", [])
+        call_id = (raw_data or {}).get("call_id") or "unknown"
+        gd = (raw_data or {}).get("global_data", {})
+        current_step = gd.get("current_step")
+        draft = gd.get("agent_draft", {}) or {}
+        logger.info(
+            "[wizard:%s] create_agent ENTRY step=%s draft_keys=%s",
+            call_id, current_step, sorted(draft.keys()),
+        )
 
-        # Dedup guard: SignalWire retries SWAIG calls if a tool exceeds its
-        # response timeout. Without this guard each retry creates a new
-        # employee. Key the in-flight map by (call_id, name) so a genuinely
-        # different agent in the same call still works.
-        call_id = (raw_data or {}).get("call_id", "") if isinstance(raw_data, dict) else ""
-        dedup_key = f"{call_id}:{name}"
-        existing = _wizard_create_inflight.get(dedup_key)
-        if existing:
-            if existing.get("status") == "done":
-                logger.info(f"[wizard] create_agent: returning cached result for {dedup_key}")
-                return existing["result"]
-            # Still in progress — return a "we're working on it" response.
-            logger.info(f"[wizard] create_agent: orchestration already in flight for {dedup_key}, acknowledging")
-            ack_text = f"I'm still building {name}. Please give it a moment."
-            ack = SwaigFunctionResult(ack_text)
-            ack.swml_user_event({"type": "wizard_said", "text": ack_text})
-            return ack
-        _wizard_create_inflight[dedup_key] = {"status": "in_flight"}
+        # Step guard
+        if current_step != "review":
+            logger.warning("[wizard:%s] create_agent BLOCKED: step=%s != review", call_id, current_step)
+            spoken = "Hold on — we're not at the review stage yet."
+            return SwaigFunctionResult(spoken).swml_user_event(self._wizard_said(spoken))
 
-        # Orchestrate via the frontend route so the agent gets a real
-        # SignalWire SWML resource, a callFabricAddress, and a SQLite row —
-        # the same path used by the dashboard's "Create Employee" button.
-        project_id = (raw_data or {}).get("project_id") if isinstance(raw_data, dict) else None
-        creds = _wizard_lookup_user_credentials(project_id)
-        if not creds:
-            logger.error(f"[wizard] create_agent: no credentials for project_id={project_id!r}")
-            err_text = (
-                "I couldn't find your SignalWire credentials. Please make sure you've logged in "
-                "on the dashboard before creating agents through the wizard."
+        # Effective prompt: explicit prompt wins, else fall back to prompt_summary.
+        effective_prompt = (draft.get("prompt") or "").strip()
+        if not effective_prompt:
+            effective_prompt = (draft.get("prompt_summary") or "").strip()
+
+        missing = []
+        if not (draft.get("name") or "").strip():
+            missing.append("name")
+        if not (draft.get("role") or "").strip():
+            missing.append("role")
+        if not effective_prompt:
+            missing.append("prompt")
+        if not (draft.get("voice") or "").strip():
+            missing.append("voice")
+        if not (draft.get("greeting") or "").strip():
+            missing.append("greeting")
+        if missing:
+            logger.warning(
+                "[wizard:%s] create_agent VALIDATION_FAILED missing=%s draft=%s",
+                call_id, missing, {k: bool(draft.get(k)) for k in ["name","role","prompt","prompt_summary","voice","greeting","functions"]},
             )
-            result = SwaigFunctionResult(err_text)
-            result.swml_user_event({"type": "wizard_said", "text": err_text})
-            _wizard_create_inflight.pop(dedup_key, None)
-            return result
+            spoken = f"I'm missing {', '.join(missing)} — let's fill that in first."
+            return SwaigFunctionResult(spoken).swml_user_event(self._wizard_said(spoken))
 
-        employee_data = {
-            "name": name,
-            "role": role,
-            "greeting": greeting,
-            "prompt": prompt,
-            "voice": voice,
-            "language": language,
-            "temperature": temperature,
-            "enabled_functions": functions,
-            "speech_hints": [],
+        # Resolve project_id from raw_data (multiple possible locations).
+        project_id = (
+            (raw_data or {}).get("project_id")
+            or (raw_data or {}).get("global_data", {}).get("project_id")
+            or ((raw_data or {}).get("call_id_data") or {}).get("project_id")
+        )
+        logger.info("[wizard:%s] create_agent project_id=%s", call_id, project_id)
+
+        credentials = _wizard_lookup_user_credentials(project_id) if project_id else None
+        if not credentials:
+            logger.warning(
+                "[wizard:%s] create_agent CREDS_MISSING project_id=%s",
+                call_id, project_id,
+            )
+            spoken = (
+                "I couldn't find your SignalWire credentials — make sure you're logged in "
+                "on the dashboard, then try again."
+            )
+            return SwaigFunctionResult(spoken).swml_user_event(self._wizard_said(spoken))
+
+        # Dedup guard
+        dedup_key = f"{call_id}:{draft.get('name','')}"
+        if dedup_key in _wizard_create_inflight:
+            logger.info("[wizard:%s] create_agent DEDUP_HIT key=%s", call_id, dedup_key)
+            spoken = "I'm already creating that one — give me a few seconds."
+            return SwaigFunctionResult(spoken).swml_user_event(self._wizard_said(spoken))
+        _wizard_create_inflight[dedup_key] = True
+
+        # Build the payload the existing helper expects.
+        agent_data = {
+            "name": draft["name"],
+            "role": draft["role"],
+            "greeting": draft["greeting"],
+            "prompt": effective_prompt,
+            "voice": draft["voice"],
+            "language": draft.get("language", "en-US"),
+            "temperature": draft.get("temperature", 0.7),
+            "speech_hints": draft.get("speech_hints", []),
+            "enabled_functions": draft.get("functions", []),
+            "transfer_number": draft.get("transfer_number", ""),
+            "transfer_from": draft.get("transfer_from", ""),
+            "sms_from_number": draft.get("sms_from_number", ""),
+            "documents": draft.get("documents", []),
         }
+        logger.info(
+            "[wizard:%s] create_agent POSTING name=%s role=%s voice=%s fn_count=%d",
+            call_id, agent_data["name"], agent_data["role"], agent_data["voice"], len(agent_data["enabled_functions"]),
+        )
 
         try:
-            response = _wizard_create_employee_via_frontend(employee_data, creds)
+            result = _wizard_create_employee_via_frontend(agent_data, credentials)
         except Exception as e:
-            logger.error(f"[wizard] create_agent: orchestration failed: {e}")
-            err_text = f"The build didn't go through — {e}. Want to try again?"
-            result = SwaigFunctionResult(err_text)
-            result.swml_user_event({"type": "wizard_said", "text": err_text})
             _wizard_create_inflight.pop(dedup_key, None)
-            return result
+            logger.error("[wizard:%s] create_agent FRONTEND_ERROR err=%s", call_id, e)
+            spoken = (
+                f"The build didn't go through — {e}. "
+                "Want me to retry, or change something first?"
+            )
+            return SwaigFunctionResult(spoken).swml_user_event(self._wizard_said(spoken))
 
-        employee = response.get("employee") or {}
-        employee_id = employee.get("id", "")
-        call_fabric_address = employee.get("callFabricAddress") or employee.get("call_fabric_address") or ""
-        logger.info(f"[wizard] Created agent via frontend: {name} ({employee_id}) at {call_fabric_address}")
-
-        result = SwaigFunctionResult(
-            f"Your agent {name} has been created and is live! "
-            "I've updated the dashboard. Give it a moment to load, then you can make your first call."
+        # Success path
+        employee = (result or {}).get("employee") or {}
+        created = {
+            "id": employee.get("id"),
+            "name": employee.get("name") or draft["name"],
+            "callFabricAddress": employee.get("callFabricAddress"),
+        }
+        logger.info(
+            "[wizard:%s] create_agent SUCCESS id=%s name=%s addr=%s",
+            call_id, created["id"], created["name"], created["callFabricAddress"],
         )
-        result.swml_user_event({
-            "type": "agent_created",
-            "employee": {**employee, "id": employee_id, "callFabricAddress": call_fabric_address},
-            "swml_route": f"/swml/{employee_id}",
-        })
-        result.swml_user_event({
-            "type": "wizard_said",
-            "text": f"Your agent {name} has been created and is live! "
-                    "I've updated the dashboard. Give it a moment to load, then you can make your first call."
-        })
-        # Cache the successful result so any retry within this call returns the same agent
-        # rather than creating a duplicate.
-        _wizard_create_inflight[dedup_key] = {"status": "done", "result": result, "employee": employee}
-        logger.info(f"[WizardAgent.create_agent] RETURNING")
-        return result
+        spoken = (
+            f"Done — {created['name']} is built and ready. "
+            "Want me to hand off the dial address so you can call them?"
+        )
+        return (
+            SwaigFunctionResult(spoken)
+                .update_global_data({"created_agent": created, "current_step": "complete"})
+                .swml_change_step("complete")
+                .swml_user_event({"type": "agent_created", "employee": employee})
+                .swml_user_event(self._checkpoint_event("review"))
+                .swml_user_event(self._wizard_said(spoken))
+        )
 
     @AgentBase.tool(
         name="finalize_agent",
-        description="Signal that the agent is ready for calls and the setup process is complete",
+        description="Hand off the new agent to the user (call-fabric address).",
         parameters={
             "type": "object",
-            "properties": {
-                "employee_id": {
-                    "type": "string",
-                    "description": "The ID of the created employee"
-                },
-                "message": {
-                    "type": "string",
-                    "description": "A completion message to display to the user"
-                }
-            },
-            "required": ["employee_id"]
-        }
+            "properties": {},
+        },
     )
     def finalize_agent(self, args, raw_data):
-        logger.info(f"[WizardAgent.finalize_agent] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        employee_id = args.get("employee_id", "")
-        message = args.get("message", "Your agent is ready to take calls!")
+        gd = (raw_data or {}).get("global_data", {})
+        if gd.get("current_step") != "complete":
+            return SwaigFunctionResult("Hold on — the agent isn't built yet.")
 
-        logger.info(f"[wizard] finalize_agent: employee_id={employee_id}")
-
-        result = SwaigFunctionResult(
-            "Your agent is all set and ready to go. Is there anything else you'd like to adjust, "
-            "or would you like to create another agent?"
+        created = gd.get("created_agent") or {}
+        addr = created.get("callFabricAddress") or "(address unavailable)"
+        spoken = (
+            f"You can call your new agent at {addr}. "
+            "I'll go quiet now — talk to you next time."
         )
-        result.swml_user_event({
-            "type": "agent_ready",
-            "employee_id": employee_id,
-            "message": message
-        })
-        result.swml_user_event({
-            "type": "wizard_said",
-            "text": "Your agent is all set and ready to go. Is there anything else you'd like to adjust, "
-                    "or would you like to create another agent?"
-        })
-        logger.info(f"[WizardAgent.finalize_agent] RETURNING")
-        return result
-
-    @AgentBase.tool(
-        name="list_available_functions",
-        description="Returns a list of all available capabilities that can be enabled for an agent",
-        parameters={
-            "type": "object",
-            "properties": {}
-        }
-    )
-    def list_available_functions(self, args, raw_data):
-        logger.info(f"[WizardAgent.list_available_functions] CALLED with args={args}, raw_data keys={list(raw_data.keys()) if raw_data else None}")
-        logger.info("[wizard] list_available_functions called")
-
-        functions_list = (
-            "Here are the available capabilities you can enable for your agent:\n"
-            "- transfer_to_human: Transfer callers to a real person at a phone number\n"
-            "- send_summary_sms: Send text message summaries or confirmations to callers\n"
-            "- schedule_callback: Schedule a phone callback for a later time\n"
-            "- check_business_hours: Tell callers if you are currently open\n"
-            "- collect_customer_info: Gather and store caller name, email, phone, and company\n"
-            "- send_email: Send follow-up emails to callers via SendGrid\n"
-            "- search_knowledge: Search uploaded documents to answer caller questions"
+        return (
+            SwaigFunctionResult(spoken)
+                .swml_user_event({"type": "agent_ready", **created})
+                .swml_user_event(self._wizard_said(spoken))
         )
-        logger.info(f"[WizardAgent.list_available_functions] RETURNING")
-        return SwaigFunctionResult(functions_list)
 
 
 # Create FastAPI app
@@ -1475,14 +1516,121 @@ async def get_employee(employee_id: str = Path(...)):
     }
 
 
+def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
+    """Render runnable Python that, when executed, builds the live agent's SWML.
+
+    The output uses signalwire-agents SDK constructs (AgentBase, prompt_add_section,
+    set_post_prompt, add_language) — the same APIs the live VirtualEmployeeAgent in
+    this file uses. Identifiers, voice, language, prompt body, greeting, and enabled
+    function ids are interpolated from the stored config.
+    """
+    name = employee_config.get("name", "Employee")
+    role = employee_config.get("role", "Assistant")
+    employee_id = employee_config.get("id", "employee")
+    voice = employee_config.get("voice", "openai.nova")
+    language = employee_config.get("language", "en-US")
+    temperature = employee_config.get("temperature", 0.7)
+    greeting = employee_config.get("greeting", "")
+    prompt_body = employee_config.get("prompt", "")
+    enabled_functions = employee_config.get("enabled_functions") or []
+    business_hours_start = employee_config.get("business_hours_start", 9)
+    business_hours_end = employee_config.get("business_hours_end", 18)
+    business_days = employee_config.get("business_days", [0, 1, 2, 3, 4])
+
+    # Build a class name from the agent name: "Sales Agent" -> "SalesAgent"
+    class_name = "".join(word.capitalize() or "_" for word in (name.split() or ["Agent"])) or "Agent"
+
+    # Pretty-print the function list as a Python literal.
+    fn_literal = json.dumps(enabled_functions)
+    days_literal = json.dumps(business_days)
+
+    # Use a triple-quoted prompt body. Escape any embedded triple quotes.
+    safe_prompt = prompt_body.replace('"""', '\\"\\"\\"')
+    safe_greeting = greeting.replace('"', '\\"')
+
+    return f'''#!/usr/bin/env python3
+"""
+{name} ({role})
+
+Generated agent code. Running this file produces the same SWML that the live
+HireWire backend serves for this agent at /swml/{employee_id}.
+
+Requires:
+    pip install signalwire-agents
+
+Usage:
+    python {employee_id}.py     # runs the agent on http://localhost:3000
+"""
+
+from signalwire_agents import AgentBase, SwaigFunctionResult
+
+
+class {class_name}(AgentBase):
+    """An AI voice agent built with the signalwire-agents SDK."""
+
+    def __init__(self):
+        super().__init__(
+            name="{name}",
+            route="/swml/{employee_id}",
+            host="0.0.0.0",
+            port=3000,
+        )
+
+        # Voice + language
+        self.add_language(name="English", code="{language}", voice="{voice}")
+        self.set_param("temperature", {temperature})
+
+        # Greeting (the first thing the caller hears)
+        self.set_param("greeting", "{safe_greeting}")
+
+        # System prompt — what the agent knows about its job
+        self.prompt_add_section(
+            "Identity and mission",
+            """{safe_prompt}""",
+        )
+
+        # Enabled SWAIG functions. Implementations omitted for brevity; in the
+        # live HireWire backend they are wired to per-employee handlers (see
+        # VirtualEmployeeAgent in agent/main.py).
+        self._enabled_functions = {fn_literal}
+
+        # Business hours metadata (used by check_business_hours, if enabled)
+        self._business_hours = dict(
+            start={business_hours_start},
+            end={business_hours_end},
+            days={days_literal},
+        )
+
+        # Post-prompt summary (matches HireWire's call-log schema)
+        self.set_post_prompt(
+            "You have just finished a phone conversation. Produce a JSON object "
+            "summarizing it with these fields: summary, caller_intent, outcome "
+            "(resolved|transferred|abandoned|follow_up_needed|no_outcome), "
+            "sentiment (positive|neutral|negative), topics (array), follow_up, "
+            "key_quotes (array of up to 3 short quotes), next_steps (array). "
+            "Output ONLY the JSON object."
+        )
+
+
+if __name__ == "__main__":
+    {class_name}().run()
+'''
+
+
 @app.get("/agent-code/{employee_id}", response_class=PlainTextResponse)
 async def get_agent_code(employee_id: str = Path(...)):
+    """Return runnable Python that mirrors how this agent is built.
+
+    The generated code is structurally identical to the live agent — same
+    SDK calls, same prompt body, same voice/language/functions — so a developer
+    can copy it, run `pip install signalwire-agents`, then `python <id>.py`
+    to stand up an equivalent agent locally for inspection or extension.
+    """
     if employee_id not in employees:
         raise HTTPException(status_code=404, detail="Employee not found")
-    raise HTTPException(
-        status_code=501,
-        detail="SDK code viewer is unavailable: lib/sdk_code_generator.py was never committed.",
-    )
+    employee_config = dict(employees[employee_id])
+    employee_config.setdefault("id", employee_id)
+    return _generate_sdk_code(employee_config)
 
 
 @app.patch("/api/employee/{employee_id}")

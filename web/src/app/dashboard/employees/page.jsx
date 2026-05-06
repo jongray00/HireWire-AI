@@ -735,6 +735,7 @@ export default function EmployeesPage() {
   if (showCreateForm || editingEmployee) {
     return (
       <VirtualEmployeeForm
+        key={editingEmployee?.id || (templateData ? `tpl-${templateData.name}` : 'blank')}
         employee={editingEmployee}
         template={templateData}
         onSave={editingEmployee ? handleUpdateEmployee : handleCreateEmployee}
