@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.119.1",
     "python-dotenv>=1.1.1",
-    "signalwire-agents>=0.1.54",
+    "signalwire-agents>=1.1.0,<2.0",
     "uvicorn[standard]>=0.38.0",
 ]
 
