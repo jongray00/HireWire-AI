@@ -7,6 +7,7 @@ Each employee has their own configuration and SWML endpoint.
 """
 
 import os
+import re
 import uuid
 import json
 import logging
@@ -1142,14 +1143,289 @@ async def get_employee(employee_id: str = Path(...)):
     }
 
 
+_HANDLERS_SOURCE_CACHE: Optional[str] = None
+_HANDLERS_START = "# === HANDLERS START ==="
+_HANDLERS_END = "# === HANDLERS END ==="
+
+
+def _read_handlers_source() -> str:
+    """Read agent/swaig_handlers.py as text, stripping its top-level imports.
+
+    The generated file has its own consolidated import block; embedding the
+    handlers' imports too would cause duplicate-import warnings and noise.
+    Anything above the logger declaration is stripped.
+    """
+    global _HANDLERS_SOURCE_CACHE
+    if _HANDLERS_SOURCE_CACHE is not None:
+        return _HANDLERS_SOURCE_CACHE
+    src = (_Path(__file__).parent / "swaig_handlers.py").read_text()
+    # Find the line "logger = logging.getLogger(__name__)" — everything above
+    # is module imports we'll consolidate at the top of the generated file.
+    marker = "logger = logging.getLogger(__name__)"
+    idx = src.find(marker)
+    if idx == -1:
+        # Fallback: keep the whole file (drift-guard test will then need to
+        # account for this; we treat this as a hard error so it can't slip).
+        raise RuntimeError("swaig_handlers.py missing expected logger marker")
+    # Keep from the marker onward (logger declaration + everything below).
+    _HANDLERS_SOURCE_CACHE = src[idx:]
+    return _HANDLERS_SOURCE_CACHE
+
+
+def _safe_class_name(name: str) -> str:
+    """Convert "Sally Sales" -> "SallySalesAgent". Falls back to "EmployeeAgent"."""
+    parts = re.findall(r"[A-Za-z0-9]+", name or "")
+    capitalized = "".join(p[:1].upper() + p[1:] for p in parts) or "Employee"
+    if not capitalized[0].isalpha():
+        capitalized = "Employee" + capitalized
+    return capitalized + "Agent" if not capitalized.endswith("Agent") else capitalized
+
+
+def _env_block(enabled_functions: list) -> str:
+    needs_signalwire = "search_knowledge" in enabled_functions
+    needs_sendgrid = "send_email" in enabled_functions
+    if not (needs_signalwire or needs_sendgrid):
+        return "# No env vars required — this agent is fully self-contained.\n"
+    lines = ["# Required env vars:"]
+    if needs_signalwire:
+        lines += [
+            "#   SIGNALWIRE_SPACE       e.g. yourspace.signalwire.com",
+            "#   SIGNALWIRE_PROJECT_ID  UUID of your SignalWire project",
+            "#   SIGNALWIRE_TOKEN       REST API token",
+        ]
+    if needs_sendgrid:
+        lines.append("#   SENDGRID_API_KEY       SendGrid API key for outbound email")
+    return "\n".join(lines) + "\n"
+
+
+def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
+    """Render runnable Python that, when executed, builds an agent equivalent
+    to the live HireWire one — same SWML, same SWAIG behavior."""
+    name = employee_config.get("name", "Employee")
+    role = employee_config.get("role", "Assistant")
+    employee_id = employee_config.get("id", "employee")
+    voice = employee_config.get("voice", "openai.nova")
+    language = employee_config.get("language", "en-US")
+    temperature = employee_config.get("temperature", 0.7)
+    greeting = employee_config.get("greeting", "")
+    prompt_body = employee_config.get("prompt", "")
+    enabled_functions = list(employee_config.get("enabled_functions") or [])
+    business_hours_start = employee_config.get("business_hours_start", 9)
+    business_hours_end = employee_config.get("business_hours_end", 18)
+    business_days = employee_config.get("business_days", [0, 1, 2, 3, 4])
+    transfer_number = employee_config.get("transfer_number", "")
+    transfer_from = employee_config.get("transfer_from", "")
+    sms_from_number = employee_config.get("sms_from_number", "")
+    email_from_address = employee_config.get("email_from_address", "")
+    email_from_name = employee_config.get("email_from_name", "")
+    documents = employee_config.get("documents", [])
+
+    class_name = _safe_class_name(name)
+    needs_os_import = ("search_knowledge" in enabled_functions) or ("send_email" in enabled_functions)
+
+    # Build the embedded config dict — every value the handlers may read.
+    inline_config = {
+        "id": employee_id, "name": name,
+        "phone_number": employee_config.get("phone_number", ""),  # fallback for transfer_to_human
+        "transfer_number": transfer_number,
+        "transfer_from": transfer_from,
+        "sms_from_number": sms_from_number,
+        "email_from_address": email_from_address,
+        "email_from_name": email_from_name,
+        "business_hours_start": business_hours_start,
+        "business_hours_end": business_hours_end,
+        "business_days": business_days,
+        # NB: sendgrid_api_key intentionally absent — handler falls through
+        # to os.getenv("SENDGRID_API_KEY"), keeping the secret out of the file.
+    }
+
+    # Compose
+    handlers_source = _read_handlers_source()
+    env_block = _env_block(enabled_functions)
+    safe_prompt = prompt_body.replace('"""', '\\"\\"\\"')
+
+    # Build SWAIG method blocks — mirrors VirtualEmployeeAgent._configure_functions:
+    # when enabled_functions is empty (falsy), all tools remain (none removed);
+    # when enabled_functions is non-empty, only listed ones are registered.
+    _ALL_SWAIG = [
+        "transfer_to_human", "send_summary_sms", "schedule_callback",
+        "check_business_hours", "collect_customer_info", "send_email",
+    ]
+    if not enabled_functions:
+        # Live: no removal loop runs → all 6 tools stay registered.
+        active_fns = _ALL_SWAIG
+    else:
+        # Live: removal loop runs, keeps only what's in enabled_functions.
+        active_fns = [
+            f for f in enabled_functions
+            if f in set(_ALL_SWAIG)
+        ]
+    swaig_methods = []
+    for fn_id in active_fns:
+        const = fn_id.upper()
+        swaig_methods.append(
+            f"    @AgentBase.tool(**{const})\n"
+            f"    def {fn_id}(self, args, raw_data):\n"
+            f"        return {fn_id}(self._config, args, raw_data)\n"
+        )
+    swaig_methods_block = "\n".join(swaig_methods) if swaig_methods else "    pass  # no SWAIG functions enabled\n"
+
+    # Build DataSphere skill registration block.
+    if "search_knowledge" in enabled_functions and documents:
+        ds_lines = [
+            "        # DataSphere knowledge bases (requires SIGNALWIRE_* env vars)",
+            "        space_name = os.environ['SIGNALWIRE_SPACE']",
+            "        project_id = os.environ['SIGNALWIRE_PROJECT_ID']",
+            "        token = os.environ['SIGNALWIRE_TOKEN']",
+            "        import hashlib",
+            "        doc_descriptions = []",
+            f"        documents = {json.dumps(documents)}",
+            "        for doc in documents:",
+            "            doc_id = doc.get('document_id', '') if isinstance(doc, dict) else doc",
+            "            doc_name = doc.get('name', doc_id[:8]) if isinstance(doc, dict) else doc_id[:8]",
+            "            doc_desc = doc.get('description', '') if isinstance(doc, dict) else ''",
+            "            doc_distance = doc.get('distance', 3.0) if isinstance(doc, dict) else 3.0",
+            "            if not doc_id:",
+            "                continue",
+            "            doc_hash = hashlib.md5(str(doc_id).encode()).hexdigest()[:6]",
+            "            safe_name = doc_name.lower().replace(' ', '_').replace('-', '_')[:20]",
+            "            tool_name = f'search_{safe_name}_{doc_hash}'",
+            "            self.add_skill('datasphere_serverless', {",
+            "                'space_name': space_name, 'project_id': project_id, 'token': token,",
+            "                'document_id': doc_id, 'count': 3, 'distance': doc_distance,",
+            "                'tool_name': tool_name,",
+            "                'description': doc_desc or f'Search the {doc_name} knowledge base',",
+            "                'swaig_fields': {'fillers': {'en-US': [",
+            "                    'Let me check our documentation...',",
+            "                    'Searching our knowledge base...',",
+            "                    'Looking that up for you...',",
+            "                ]}},",
+            "            })",
+            "            doc_descriptions.append(f'- {tool_name}: {doc_desc or doc_name}')",
+            "        if len(doc_descriptions) > 1:",
+            "            routing = 'You have access to these knowledge bases:\\n' + '\\n'.join(doc_descriptions)",
+            "            routing += '\\nChoose the most relevant one based on the caller\\'s question.'",
+            "            self.add_pom_section('Knowledge Base Routing', body=routing)",
+        ]
+        ds_block = "\n".join(ds_lines)
+    else:
+        ds_block = "        # search_knowledge not enabled — no DataSphere setup."
+
+    # Personality / prompt / voice block — mirrors VirtualEmployeeAgent.__init__
+    # for the parts that affect SWML output.
+    sms_guideline_emit = ""
+    if "send_summary_sms" in enabled_functions:
+        sms_guideline_emit = (
+            "        guidelines.append("
+            "'Before ending the call, ask the caller if they would like a summary "
+            "sent to their phone via text message. If yes, ask for their phone "
+            "number, then use the send_summary_sms function.')\n"
+        )
+
+    # Instructions POM section — only emitted when prompt is non-empty (matches
+    # _update_personality's `if prompt:` guard).
+    if prompt_body:
+        instructions_emit = (
+            f'        self.prompt_add_section("Instructions", body="""{safe_prompt}""")'
+        )
+    else:
+        instructions_emit = (
+            "        # No prompt body — Instructions section omitted (matches live behavior)"
+        )
+
+    header = f'''#!/usr/bin/env python3
+"""
+{name} ({role})
+
+Generated agent code. Running this file produces SWML equivalent to the live
+HireWire backend's `/swml/{employee_id}` endpoint, and every enabled SWAIG
+function executes the same logic.
+
+Requires: pip install signalwire-agents
+
+Usage: python {employee_id}.py     # serves on http://localhost:3000
+
+{env_block.rstrip()}
+"""
+'''
+
+    # Always include all imports the handlers source needs (logging, os, re,
+    # datetime, typing) plus signalwire_agents. The handlers source block is
+    # embedded verbatim and relies on these at module level.
+    imports = (
+        "import logging\n"
+        "import os\n"
+        "import re\n"
+        "from datetime import datetime\n"
+        "from typing import Any, Dict\n"
+        "from signalwire_agents import AgentBase, SwaigFunctionResult\n"
+    )
+
+    inline_config_repr = json.dumps(inline_config, indent=4)
+
+    agent_class = f'''
+{_HANDLERS_START}
+
+{handlers_source}
+{_HANDLERS_END}
+
+
+class {class_name}(AgentBase):
+    """Generated agent — mirrors HireWire VirtualEmployeeAgent for this employee."""
+
+    def __init__(self):
+        super().__init__(name="{name}", route="/swml/{employee_id}", host="0.0.0.0", port=3000)
+        self._config = {inline_config_repr}
+        self.add_language(name="English", code="{language}", voice="{voice}",
+            speech_fillers=[
+                "Let me help you with that...",
+                "One moment please...",
+                "I\\'m processing your request...",
+            ],
+            function_fillers=[
+                "Let me check on that for you...",
+                "I\\'m looking that up now...",
+            ],
+        )
+        self.set_param("temperature", {temperature})
+        self.prompt_add_section("Identity",
+            body=f"You are {name}, a {role}. Your greeting is: \\"{greeting}\\"")
+{instructions_emit}
+        guidelines = [
+            "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
+            "Be conversational and natural, not robotic",
+            "Listen fully before responding",
+            "If you are unsure about something, say so and offer to connect the caller with a human",
+            "Always end interactions with a clear next step",
+        ]
+{sms_guideline_emit}        self.prompt_add_section("Voice Interaction Guidelines", bullets=guidelines)
+        self.set_post_prompt(POST_PROMPT_TEMPLATE)
+{ds_block}
+
+    def on_swml_request(self, request_data=None, callback_path=None, request=None):
+        # Enable live transcription with the agent's primary language.
+        self.add_verb("live_transcribe", {{
+            "action": "start",
+            "lang": "{language}".split("-")[0],
+            "live_events": True,
+            "direction": ["remote-caller", "local-caller"],
+        }})
+        return super().on_swml_request(request_data, callback_path, request)
+
+{swaig_methods_block}
+
+if __name__ == "__main__":
+    {class_name}().run()
+'''
+
+    return header + "\n" + imports + agent_class
+
+
 @app.get("/agent-code/{employee_id}", response_class=PlainTextResponse)
 async def get_agent_code(employee_id: str = Path(...)):
     if employee_id not in employees:
         raise HTTPException(status_code=404, detail="Employee not found")
-    raise HTTPException(
-        status_code=501,
-        detail="SDK code viewer is unavailable: lib/sdk_code_generator.py was never committed.",
-    )
+    return _generate_sdk_code(employees[employee_id])
 
 
 @app.patch("/api/employee/{employee_id}")

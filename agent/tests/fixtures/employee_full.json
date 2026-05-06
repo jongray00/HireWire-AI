@@ -1,0 +1,27 @@
+{
+  "id": "full_emp",
+  "name": "Full Agent",
+  "role": "Account Executive",
+  "voice": "openai.nova",
+  "language": "en-US",
+  "greeting": "Hello, this is the full-featured agent.",
+  "prompt": "You handle calls, transfers, callbacks, SMS summaries, and email follow-ups.",
+  "enabled_functions": [
+    "transfer_to_human", "send_summary_sms", "schedule_callback",
+    "check_business_hours", "collect_customer_info", "send_email",
+    "search_knowledge"
+  ],
+  "transfer_number": "+15555550100",
+  "transfer_from": "+15555550101",
+  "sms_from_number": "+15555550102",
+  "email_from_address": "agent@example.com",
+  "email_from_name": "Full Agent",
+  "documents": [
+    {"document_id": "doc-aaa-111", "name": "Pricing", "description": "Pricing reference", "distance": 3.0},
+    {"document_id": "doc-bbb-222", "name": "Product FAQ", "description": "Product Q&A", "distance": 2.5}
+  ],
+  "business_hours_start": 9,
+  "business_hours_end": 18,
+  "business_days": [0, 1, 2, 3, 4],
+  "temperature": 0.7
+}

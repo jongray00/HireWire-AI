@@ -1,0 +1,16 @@
+{
+  "id": "min_emp",
+  "name": "Minimal Agent",
+  "role": "Receptionist",
+  "voice": "openai.nova",
+  "language": "en-US",
+  "greeting": "Hi, how can I help?",
+  "prompt": "You answer the phone and offer to transfer.",
+  "enabled_functions": ["transfer_to_human"],
+  "transfer_number": "+15555550100",
+  "transfer_from": "+15555550101",
+  "business_hours_start": 9,
+  "business_hours_end": 18,
+  "business_days": [0, 1, 2, 3, 4],
+  "temperature": 0.7
+}
