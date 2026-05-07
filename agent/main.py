@@ -1612,9 +1612,16 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
         for hname, hsrc in builder_helpers.items():
             helpers.setdefault(hname, hsrc)
 
-    helpers_block = "\n\n".join(helpers.values())
-    swaig_block = "\n\n".join(swaig_methods)
-    unknown_block = "\n".join(unknown_warnings)
+    # Combine swaig/helpers/unknown into a single class-body tail so empty blocks
+    # don't leave behind multiple blank lines before `if __name__`.
+    class_body_tail_parts = [
+        chunk for chunk in (
+            "\n\n".join(swaig_methods),
+            "\n\n".join(helpers.values()),
+            "\n".join(unknown_warnings),
+        ) if chunk
+    ]
+    class_body_tail = "\n\n".join(class_body_tail_parts)
     datasphere_lines = datasphere_block(employee_config)
 
     header = env_var_header(employee_config, enabled_functions)
@@ -1687,10 +1694,7 @@ class {class_name}(AgentBase):
 {datasphere_lines}
         self.set_post_prompt({post_prompt_literal})
 
-{swaig_block}
-
-{helpers_block}
-{unknown_block}
+{class_body_tail}
 
 
 if __name__ == "__main__":
