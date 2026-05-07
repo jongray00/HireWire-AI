@@ -1,7 +1,7 @@
 # SDK Code Generator — Deeper Pass
 
 **Date:** 2026-05-07
-**Status:** Design approved, pending plan
+**Status:** Implemented
 **Owner:** HireWire-AI
 
 ## Background
