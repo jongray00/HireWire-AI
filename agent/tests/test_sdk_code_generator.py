@@ -81,3 +81,120 @@ def test_minimal_config_swml_parity(tmp_path):
     live_swml = live_agent._render_swml()
 
     assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_transfer_to_human_swml_parity(tmp_path):
+    """Only transfer_to_human enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-transfer"
+    config["enabled_functions"] = ["transfer_to_human"]
+    config["transfer_number"] = "+15551112222"
+    config["phone_number"] = "+15554443333"
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_send_summary_sms_swml_parity(tmp_path):
+    """Only send_summary_sms enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-sms"
+    config["enabled_functions"] = ["send_summary_sms"]
+    config["sms_from_number"] = "+15557778888"
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_schedule_callback_swml_parity(tmp_path):
+    """Only schedule_callback enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-cb"
+    config["enabled_functions"] = ["schedule_callback"]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_check_business_hours_swml_parity(tmp_path):
+    """Only check_business_hours enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-bh"
+    config["enabled_functions"] = ["check_business_hours"]
+    config["business_hours_start"] = 8
+    config["business_hours_end"] = 17
+    config["business_days"] = [0, 1, 2, 3, 4, 5]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_collect_customer_info_swml_parity(tmp_path):
+    """Only collect_customer_info enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-cci"
+    config["enabled_functions"] = ["collect_customer_info"]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_send_email_swml_parity(tmp_path):
+    """Only send_email enabled; must match SWML."""
+    config = _minimal_config()
+    config["id"] = "test-email"
+    config["enabled_functions"] = ["send_email"]
+    config["sendgrid_api_key"] = "SG.test"
+    config["email_from_address"] = "noreply@example.com"
+    config["email_from_name"] = "Test"
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    GenAgent = _find_first_class(module)
+    gen_agent = GenAgent()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
