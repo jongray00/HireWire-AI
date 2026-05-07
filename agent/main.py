@@ -295,14 +295,14 @@ class VirtualEmployeeAgent(AgentBase):
         # not mistakenly wiped out by the cleanup loop.
         swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
         if enabled_functions:
-            # Collect function names registered by skills so we never remove them here.
-            skill_function_names: set[str] = set()
-            for skill_instance_name in self.skill_manager.list_loaded_skills():
-                # Skill instance name format: "<skill_type>_<tool_name>"
-                # The tool_name is what ends up in the tool registry.
-                for fn_name in list(self._tool_registry.get_all_functions().keys()):
-                    if skill_instance_name.endswith(fn_name):
-                        skill_function_names.add(fn_name)
+            # Collect function names registered by skills (e.g. DataSphere) so the
+            # removal loop below never wipes them out. Skills set their tool_name
+            # attribute during setup().
+            skill_function_names: set[str] = {
+                getattr(instance, "tool_name", None)
+                for instance in self.skill_manager.loaded_skills.values()
+                if getattr(instance, "tool_name", None)
+            }
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
                 if func_name not in swaig_functions and func_name not in skill_function_names:
