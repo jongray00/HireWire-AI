@@ -198,3 +198,48 @@ def test_send_email_swml_parity(tmp_path):
     live_swml = live_agent._render_swml()
 
     assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_datasphere_single_doc_swml_parity(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIGNALWIRE_SPACE", "test.signalwire.com")
+    monkeypatch.setenv("SIGNALWIRE_PROJECT_ID", "proj-1")
+    monkeypatch.setenv("SIGNALWIRE_TOKEN", "tok-1")
+
+    config = _minimal_config()
+    config["enabled_functions"] = ["search_knowledge"]
+    config["documents"] = [
+        {"document_id": "doc-aaa", "name": "Handbook", "description": "Company handbook", "distance": 3.0},
+    ]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    gen_agent = _find_first_class(module)()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_datasphere_multi_doc_swml_parity(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIGNALWIRE_SPACE", "test.signalwire.com")
+    monkeypatch.setenv("SIGNALWIRE_PROJECT_ID", "proj-1")
+    monkeypatch.setenv("SIGNALWIRE_TOKEN", "tok-1")
+
+    config = _minimal_config()
+    config["enabled_functions"] = ["search_knowledge"]
+    config["documents"] = [
+        {"document_id": "doc-aaa", "name": "Handbook", "description": "Company handbook", "distance": 3.0},
+        {"document_id": "doc-bbb", "name": "Pricing", "description": "Pricing FAQ", "distance": 2.5},
+    ]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    gen_agent = _find_first_class(module)()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)

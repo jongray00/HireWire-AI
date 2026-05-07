@@ -275,7 +275,7 @@ class VirtualEmployeeAgent(AgentBase):
                 if len(doc_descriptions) > 1:
                     routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
                     routing += "\nChoose the most relevant one based on the caller's question."
-                    self.add_pom_section("Knowledge Base Routing", body=routing)
+                    self.prompt_add_section("Knowledge Base Routing", body=routing)
             else:
                 if not documents:
                     logger.info(f"  search_knowledge enabled but no documents uploaded")
@@ -290,12 +290,22 @@ class VirtualEmployeeAgent(AgentBase):
                     self.employee_config['knowledge_error'] = f"Missing credentials: {', '.join(missing)}"
 
         # Remove SWAIG tools not in the enabled list
-        # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter
+        # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter.
+        # Also skip functions registered by skills (e.g. DataSphere) so they are
+        # not mistakenly wiped out by the cleanup loop.
         swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
         if enabled_functions:
+            # Collect function names registered by skills so we never remove them here.
+            skill_function_names: set[str] = set()
+            for skill_instance_name in self.skill_manager.list_loaded_skills():
+                # Skill instance name format: "<skill_type>_<tool_name>"
+                # The tool_name is what ends up in the tool registry.
+                for fn_name in list(self._tool_registry.get_all_functions().keys()):
+                    if skill_instance_name.endswith(fn_name):
+                        skill_function_names.add(fn_name)
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
-                if func_name not in swaig_functions:
+                if func_name not in swaig_functions and func_name not in skill_function_names:
                     self._tool_registry.remove_function(func_name)
                     logger.info(f"  Removed function '{func_name}' (not in enabled list)")
 

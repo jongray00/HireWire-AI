@@ -13,6 +13,7 @@ helpers: dict of helper-method-name -> source. Composer de-dups by name
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Callable, Dict, Tuple
 
@@ -22,10 +23,74 @@ SWAIG_TEMPLATES: Dict[str, Callable[[dict], Tuple[str, Dict[str, str]]]] = {}
 
 
 def datasphere_block(employee_config: dict) -> str:
-    """Return code for `add_skill("datasphere_serverless", ...)` calls plus the
-    optional Knowledge Base Routing pom-section. Returns "" if not applicable.
+    """Emit `self.add_skill("datasphere_serverless", {...})` calls + optional
+    Knowledge Base Routing pom-section. Returns "" if not applicable.
+
+    Mirrors VirtualEmployeeAgent._configure_functions lines 247-278.
     """
-    return ""
+    enabled = employee_config.get("enabled_functions") or []
+    if "search_knowledge" not in enabled:
+        return ""
+    documents = employee_config.get("documents") or []
+    if not documents:
+        return "        # search_knowledge enabled but no documents configured\n"
+
+    lines: list[str] = []
+    doc_descriptions: list[str] = []
+
+    for doc in documents:
+        if isinstance(doc, dict):
+            doc_id = doc.get("document_id", "")
+            doc_name = doc.get("name", doc_id[:8])
+            doc_desc = doc.get("description", "")
+            doc_distance = doc.get("distance", 3.0)
+        else:
+            doc_id = doc
+            doc_name = doc_id[:8]
+            doc_desc = ""
+            doc_distance = 3.0
+
+        if not doc_id:
+            continue
+
+        doc_hash = hashlib.md5(str(doc_id).encode()).hexdigest()[:6]
+        safe_name = doc_name.lower().replace(" ", "_").replace("-", "_")[:20]
+        tool_name = f"search_{safe_name}_{doc_hash}"
+        description_text = doc_desc or f"Search the {doc_name} knowledge base"
+
+        skill_block = (
+            '        self.add_skill("datasphere_serverless", {\n'
+            '            "space_name": os.environ["SIGNALWIRE_SPACE"],\n'
+            '            "project_id": os.environ["SIGNALWIRE_PROJECT_ID"],\n'
+            '            "token": os.environ["SIGNALWIRE_TOKEN"],\n'
+            f'            "document_id": {json.dumps(doc_id)},\n'
+            '            "count": 3,\n'
+            f'            "distance": {doc_distance},\n'
+            f'            "tool_name": {json.dumps(tool_name)},\n'
+            f'            "description": {json.dumps(description_text)},\n'
+            '            "swaig_fields": {\n'
+            '                "fillers": {\n'
+            '                    "en-US": [\n'
+            '                        "Let me check our documentation...",\n'
+            '                        "Searching our knowledge base...",\n'
+            '                        "Looking that up for you...",\n'
+            '                    ]\n'
+            '                }\n'
+            '            },\n'
+            '        })'
+        )
+        lines.append(skill_block)
+        # Routing description matches live agent: doc_desc or doc_name (not description_text)
+        doc_descriptions.append(f"- {tool_name}: {doc_desc or doc_name}")
+
+    if len(doc_descriptions) > 1:
+        routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
+        routing += "\nChoose the most relevant one based on the caller's question."
+        lines.append(
+            f'        self.prompt_add_section("Knowledge Base Routing", body={json.dumps(routing)})'
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def env_var_header(employee_config: dict, enabled_functions: list) -> str:
