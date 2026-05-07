@@ -31,12 +31,14 @@ def _load_generated_module(code: str, tmp_path: Path):
 
 
 def _normalize_swml(swml_str: str) -> dict:
-    """Parse SWML JSON and strip webhook hosts so we compare schema, not host."""
+    """Parse SWML JSON and strip webhook URLs so we compare schema, not hosts/tokens."""
     data = json.loads(swml_str)
     text = json.dumps(data, sort_keys=True)
-    # Strip absolute webhook hosts → relative paths, both http and https.
-    text = re.sub(r'https?://[^/"]+/swaig', '/swaig', text)
-    text = re.sub(r'https?://[^/"]+/post_prompt', '/post_prompt', text)
+    # Strip full webhook URLs (including path, auth credentials, and __token query params)
+    # down to a stable stub. The SDK embeds per-instance auth tokens and timestamps that
+    # differ between two separate agent instances even with the same config.
+    text = re.sub(r'https?://[^"]*?/swaig/[^"]*', '/swaig/', text)
+    text = re.sub(r'https?://[^"]*?/post_prompt/[^"]*', '/post_prompt/', text)
     return json.loads(text)
 
 
