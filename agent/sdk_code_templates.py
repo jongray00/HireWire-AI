@@ -93,14 +93,64 @@ def datasphere_block(employee_config: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def env_var_header(employee_config: dict, enabled_functions: list) -> str:
+def env_var_header(employee_config: dict, enabled_functions: list[str]) -> str:
     """Return the top-of-file docstring listing required env vars + quickstart.
 
     Only lists env vars actually consumed by the enabled functions / DataSphere.
     Surfaces user-config values as comments (e.g. HireWire-stored transfer
     number) but never inlines API tokens.
     """
-    return ""
+    name = employee_config.get("name", "Employee")
+    role = employee_config.get("role", "Virtual Assistant")
+    employee_id = employee_config.get("id", "employee")
+
+    rows: list[str] = []
+
+    if "search_knowledge" in enabled_functions and (employee_config.get("documents") or []):
+        rows.append("  SIGNALWIRE_SPACE          — your SignalWire space (e.g. example.signalwire.com)")
+        rows.append("  SIGNALWIRE_PROJECT_ID     — your SignalWire project ID")
+        rows.append("  SIGNALWIRE_TOKEN          — your SignalWire API token (do NOT commit)")
+
+    if "transfer_to_human" in enabled_functions:
+        cur = employee_config.get("transfer_number", "")
+        rows.append(f"  HIREWIRE_TRANSFER_NUMBER  — number to transfer callers to{(' (HireWire had: ' + cur + ')') if cur else ''}")
+        cur_from = employee_config.get("transfer_from") or employee_config.get("phone_number", "")
+        if cur_from:
+            rows.append(f"  HIREWIRE_TRANSFER_FROM    — caller-ID for transfer (HireWire had: {cur_from})")
+        else:
+            rows.append("  HIREWIRE_TRANSFER_FROM    — caller-ID for transfer (optional)")
+
+    if "send_summary_sms" in enabled_functions:
+        cur = employee_config.get("sms_from_number", "")
+        rows.append(f"  HIREWIRE_SMS_FROM_NUMBER  — SMS sender number{(' (HireWire had: ' + cur + ')') if cur else ''}")
+
+    if "send_email" in enabled_functions:
+        cur_addr = employee_config.get("email_from_address", "")
+        cur_nm = employee_config.get("email_from_name", "")
+        rows.append("  SENDGRID_API_KEY          — your SendGrid API key (do NOT commit)")
+        rows.append(f"  HIREWIRE_EMAIL_FROM_ADDRESS — sender email{(' (HireWire had: ' + cur_addr + ')') if cur_addr else ''}")
+        if cur_nm:
+            rows.append(f"  HIREWIRE_EMAIL_FROM_NAME  — sender display name (HireWire had: {cur_nm})")
+        else:
+            rows.append("  HIREWIRE_EMAIL_FROM_NAME  — sender display name (optional)")
+
+    env_section = (
+        "\nRequired environment variables:\n" + "\n".join(rows) + "\n"
+    ) if rows else ""
+
+    return (
+        '"""\n'
+        f"{name} ({role})\n\n"
+        "Generated agent code from HireWire-AI. When run, this file serves SWML at\n"
+        f"http://localhost:3000/swml/{employee_id} whose schema matches the live HireWire\n"
+        "agent's SWML for this employee."
+        f"{env_section}"
+        "\nQuickstart:\n"
+        "  pip install signalwire-agents\n"
+        "  # set required env vars above\n"
+        f"  python {employee_id}.py\n"
+        '"""'
+    )
 
 
 # ---------------------------------------------------------------------------

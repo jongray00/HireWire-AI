@@ -243,3 +243,41 @@ def test_datasphere_multi_doc_swml_parity(tmp_path, monkeypatch):
     live_swml = live_agent._render_swml()
 
     assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_env_var_header_lists_only_used_vars(tmp_path):
+    config = _minimal_config()
+    config["enabled_functions"] = ["transfer_to_human"]
+    config["transfer_number"] = "+15551112222"
+
+    code = _generate_sdk_code(config)
+
+    assert "HIREWIRE_TRANSFER_NUMBER" in code
+    # Not enabled: SMS, email, SignalWire creds
+    assert "HIREWIRE_SMS_FROM_NUMBER" not in code
+    assert "SENDGRID_API_KEY" not in code
+    assert "SIGNALWIRE_TOKEN" not in code
+
+
+def test_env_var_header_includes_signalwire_creds_for_datasphere(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIGNALWIRE_SPACE", "test.signalwire.com")
+    monkeypatch.setenv("SIGNALWIRE_PROJECT_ID", "proj-1")
+    monkeypatch.setenv("SIGNALWIRE_TOKEN", "tok-1")
+
+    config = _minimal_config()
+    config["enabled_functions"] = ["search_knowledge"]
+    config["documents"] = [{"document_id": "doc-aaa", "name": "Handbook"}]
+
+    code = _generate_sdk_code(config)
+    assert "SIGNALWIRE_SPACE" in code
+    assert "SIGNALWIRE_PROJECT_ID" in code
+    assert "SIGNALWIRE_TOKEN" in code
+
+
+def test_env_var_header_surfaces_user_config_values_as_comments(tmp_path):
+    config = _minimal_config()
+    config["enabled_functions"] = ["transfer_to_human"]
+    config["transfer_number"] = "+15551112222"
+
+    code = _generate_sdk_code(config)
+    assert "+15551112222" in code  # surfaced as comment for the copier
