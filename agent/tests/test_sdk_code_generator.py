@@ -281,3 +281,54 @@ def test_env_var_header_surfaces_user_config_values_as_comments(tmp_path):
 
     code = _generate_sdk_code(config)
     assert "+15551112222" in code  # surfaced as comment for the copier
+
+
+def test_full_config_swml_parity(tmp_path, monkeypatch):
+    """Full config with 7 functions and 2 documents: generated SWML must match live."""
+    monkeypatch.setenv("SIGNALWIRE_SPACE", "test.signalwire.com")
+    monkeypatch.setenv("SIGNALWIRE_PROJECT_ID", "proj-1")
+    monkeypatch.setenv("SIGNALWIRE_TOKEN", "tok-1")
+
+    config = _minimal_config()
+    config["enabled_functions"] = [
+        "transfer_to_human", "send_summary_sms", "schedule_callback",
+        "check_business_hours", "collect_customer_info", "send_email",
+        "search_knowledge",
+    ]
+    config["transfer_number"] = "+15551112222"
+    config["sms_from_number"] = "+15553334444"
+    config["sendgrid_api_key"] = "SG.test"
+    config["email_from_address"] = "noreply@example.com"
+    config["business_hours_start"] = 8
+    config["business_hours_end"] = 18
+    config["business_days"] = [0, 1, 2, 3, 4]
+    config["documents"] = [
+        {"document_id": "doc-aaa", "name": "Handbook", "description": "Handbook", "distance": 3.0},
+        {"document_id": "doc-bbb", "name": "Pricing", "description": "Pricing", "distance": 2.5},
+    ]
+
+    code = _generate_sdk_code(config)
+    module = _load_generated_module(code, tmp_path)
+    gen_agent = _find_first_class(module)()
+    gen_swml = gen_agent._render_swml()
+
+    live_agent = VirtualEmployeeAgent(config)
+    live_swml = live_agent._render_swml()
+
+    assert _normalize_swml(gen_swml) == _normalize_swml(live_swml)
+
+
+def test_unknown_function_emits_warning_no_crash(tmp_path):
+    """Unknown function should emit warning comment and not crash; valid functions must work."""
+    config = _minimal_config()
+    config["enabled_functions"] = ["transfer_to_human", "set_identity"]  # set_identity is wizard-only
+    config["transfer_number"] = "+15551112222"
+
+    code = _generate_sdk_code(config)
+    assert "WARN: skipped unknown function 'set_identity'" in code
+    # Must still load and render SWML
+    module = _load_generated_module(code, tmp_path)
+    gen_agent = _find_first_class(module)()
+    swml = gen_agent._render_swml()
+    assert "transfer_to_human" in swml
+    assert "set_identity" not in swml
