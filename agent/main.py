@@ -7,6 +7,7 @@ Each employee has their own configuration and SWML endpoint.
 """
 
 import os
+import re
 import uuid
 import json
 import logging
@@ -24,6 +25,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 import uvicorn
+
+from agent.sdk_code_templates import (
+    SWAIG_TEMPLATES,
+    datasphere_block,
+    env_var_header,
+)
+
+# Module-level language-code → language-name map.  Used by both
+# VirtualEmployeeAgent._get_language_name and _generate_sdk_code.
+_LANGUAGE_MAP = {
+    "en": "English", "en-US": "English", "en-GB": "English",
+    "en-AU": "English", "en-IN": "English", "en-NZ": "English",
+    "es": "Spanish", "es-ES": "Spanish", "es-419": "Spanish",
+    "fr": "French", "fr-FR": "French", "fr-CA": "French",
+    "de": "German", "de-DE": "German",
+    "it": "Italian", "it-IT": "Italian",
+    "pt": "Portuguese", "pt-BR": "Portuguese", "pt-PT": "Portuguese",
+    "ja": "Japanese", "ja-JP": "Japanese",
+    "zh": "Chinese", "zh-CN": "Chinese",
+    "ko": "Korean", "ko-KR": "Korean",
+    "hi": "Hindi", "ru": "Russian", "nl": "Dutch", "pl": "Polish",
+    "sv": "Swedish", "sv-SE": "Swedish",
+    "da": "Danish", "da-DK": "Danish",
+    "tr": "Turkish", "vi": "Vietnamese", "uk": "Ukrainian",
+    "multi": "Multilingual",
+}
 
 # Load environment variables from .env file
 load_dotenv()
@@ -126,29 +153,7 @@ class VirtualEmployeeAgent(AgentBase):
 
     def _get_language_name(self, code: str) -> str:
         """Get language name from code"""
-        lang_map = {
-            'en': 'English', 'en-US': 'English', 'en-GB': 'English',
-            'en-AU': 'English', 'en-IN': 'English', 'en-NZ': 'English',
-            'es': 'Spanish', 'es-ES': 'Spanish', 'es-419': 'Spanish',
-            'fr': 'French', 'fr-FR': 'French', 'fr-CA': 'French',
-            'de': 'German', 'de-DE': 'German',
-            'it': 'Italian', 'it-IT': 'Italian',
-            'pt': 'Portuguese', 'pt-BR': 'Portuguese', 'pt-PT': 'Portuguese',
-            'ja': 'Japanese', 'ja-JP': 'Japanese',
-            'zh': 'Chinese', 'zh-CN': 'Chinese',
-            'ko': 'Korean', 'ko-KR': 'Korean',
-            'hi': 'Hindi',
-            'ru': 'Russian',
-            'nl': 'Dutch',
-            'pl': 'Polish',
-            'sv': 'Swedish', 'sv-SE': 'Swedish',
-            'da': 'Danish', 'da-DK': 'Danish',
-            'tr': 'Turkish',
-            'vi': 'Vietnamese',
-            'uk': 'Ukrainian',
-            'multi': 'Multilingual',
-        }
-        return lang_map.get(code, 'English')
+        return _LANGUAGE_MAP.get(code, "English")
 
     def _update_personality(self):
         """Update agent personality from employee config using POM sections"""
@@ -1526,12 +1531,6 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
     skill registration logic, and emits real handler bodies for every enabled
     SWAIG function with per-environment values read from os.environ.
     """
-    from agent.sdk_code_templates import (
-        SWAIG_TEMPLATES,
-        datasphere_block,
-        env_var_header,
-    )
-
     name = employee_config.get("name", "Employee")
     role = employee_config.get("role", "Virtual Assistant")
     employee_id = employee_config.get("id", "employee")
@@ -1543,26 +1542,13 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
     enabled_functions = employee_config.get("enabled_functions") or []
 
     # Resolve language name the same way the live agent does.
-    lang_map = {
-        "en": "English", "en-US": "English", "en-GB": "English",
-        "en-AU": "English", "en-IN": "English", "en-NZ": "English",
-        "es": "Spanish", "es-ES": "Spanish", "es-419": "Spanish",
-        "fr": "French", "fr-FR": "French", "fr-CA": "French",
-        "de": "German", "de-DE": "German",
-        "it": "Italian", "it-IT": "Italian",
-        "pt": "Portuguese", "pt-BR": "Portuguese", "pt-PT": "Portuguese",
-        "ja": "Japanese", "ja-JP": "Japanese",
-        "zh": "Chinese", "zh-CN": "Chinese",
-        "ko": "Korean", "ko-KR": "Korean",
-        "hi": "Hindi", "ru": "Russian", "nl": "Dutch", "pl": "Polish",
-        "sv": "Swedish", "sv-SE": "Swedish",
-        "da": "Danish", "da-DK": "Danish",
-        "tr": "Turkish", "vi": "Vietnamese", "uk": "Ukrainian",
-        "multi": "Multilingual",
-    }
-    language_name = lang_map.get(language_code, "English")
+    language_name = _LANGUAGE_MAP.get(language_code, "English")
 
-    class_name = "".join(word.capitalize() or "_" for word in (name.split() or ["Agent"])) or "Agent"
+    # Sanitize class name: strip non-identifier chars, guard leading digits.
+    raw_class = "".join(word.capitalize() for word in (name.split() or ["Agent"]))
+    class_name = re.sub(r"[^A-Za-z0-9]", "", raw_class) or "Agent"
+    if class_name and class_name[0].isdigit():
+        class_name = "Agent" + class_name
 
     # Build voice-interaction guidelines (mirror _update_personality lines 171-185).
     guidelines = [
@@ -1624,24 +1610,27 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
     header = env_var_header(employee_config, enabled_functions)
 
     # Post-prompt mirrors _configure_post_prompt verbatim.
-    post_prompt_text = (
+    # Use repr() so the Python literal in the generated file is always valid,
+    # regardless of embedded quotes or backslashes.
+    _live_post_prompt = (
         "You have just finished a phone conversation. Produce a JSON object summarizing it. "
         "ALWAYS produce valid JSON — do not add commentary, do not wrap in code fences, "
         "do not refuse. If the call was short, silent, or had no clear content, still "
-        "produce the JSON with reasonable defaults (empty strings, empty arrays, null where appropriate).\\n"
-        "\\n"
-        "Required fields (every one must appear, even if empty):\\n"
-        '  \\"summary\\": 2-3 sentence summary of what happened. If nothing happened, say so plainly.\\n'
-        '  \\"caller_intent\\": one sentence describing what the caller wanted. Empty string if unclear.\\n'
-        '  \\"outcome\\": one of \\"resolved\\" | \\"transferred\\" | \\"abandoned\\" | \\"follow_up_needed\\" | \\"no_outcome\\".\\n'
-        '  \\"sentiment\\": one of \\"positive\\" | \\"neutral\\" | \\"negative\\".\\n'
-        '  \\"topics\\": array of 1-5 lowercase topic keywords. Empty array if none.\\n'
-        '  \\"follow_up\\": any action items, or null.\\n'
-        '  \\"key_quotes\\": array of up to 3 short verbatim quotes from the caller. Empty array if none.\\n'
-        '  \\"next_steps\\": array of recommended next steps for the agent owner. Empty array if none.\\n'
-        "\\n"
+        "produce the JSON with reasonable defaults (empty strings, empty arrays, null where appropriate).\n"
+        "\n"
+        "Required fields (every one must appear, even if empty):\n"
+        '  "summary": 2-3 sentence summary of what happened. If nothing happened, say so plainly.\n'
+        '  "caller_intent": one sentence describing what the caller wanted. Empty string if unclear.\n'
+        '  "outcome": one of "resolved" | "transferred" | "abandoned" | "follow_up_needed" | "no_outcome".\n'
+        '  "sentiment": one of "positive" | "neutral" | "negative".\n'
+        '  "topics": array of 1-5 lowercase topic keywords. Empty array if none.\n'
+        '  "follow_up": any action items, or null.\n'
+        '  "key_quotes": array of up to 3 short verbatim quotes from the caller. Empty array if none.\n'
+        '  "next_steps": array of recommended next steps for the agent owner. Empty array if none.\n'
+        "\n"
         "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
     )
+    post_prompt_literal = repr(_live_post_prompt)
 
     return f'''#!/usr/bin/env python3
 {header}
@@ -1686,9 +1675,7 @@ class {class_name}(AgentBase):
         self.set_param("temperature", {temperature})
 
 {datasphere_lines}
-        self.set_post_prompt(
-            "{post_prompt_text}"
-        )
+        self.set_post_prompt({post_prompt_literal})
 
 {swaig_block}
 

@@ -37,8 +37,8 @@ def _normalize_swml(swml_str: str) -> dict:
     # Strip full webhook URLs (including path, auth credentials, and __token query params)
     # down to a stable stub. The SDK embeds per-instance auth tokens and timestamps that
     # differ between two separate agent instances even with the same config.
-    text = re.sub(r'https?://[^"]*?/swaig/[^"]*', '/swaig/', text)
-    text = re.sub(r'https?://[^"]*?/post_prompt/[^"]*', '/post_prompt/', text)
+    text = re.sub(r'https?://[^"]*?/swaig(/[^"]*)?', '/swaig/', text)
+    text = re.sub(r'https?://[^"]*?/post_prompt(/[^"]*)?', '/post_prompt/', text)
     return json.loads(text)
 
 

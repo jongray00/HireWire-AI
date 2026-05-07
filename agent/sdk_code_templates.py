@@ -13,6 +13,7 @@ helpers: dict of helper-method-name -> source. Composer de-dups by name
 """
 from __future__ import annotations
 
+import json
 from typing import Callable, Dict, Tuple
 
 
@@ -62,7 +63,6 @@ def _build_transfer_to_human(employee_config: dict) -> tuple:
     def transfer_to_human(self, args, raw_data):
         """Transfer call to a configured phone number."""
         department = args.get("department", "general")
-        reason = args.get("reason", "Requested human assistance")
         number = os.environ.get("HIREWIRE_TRANSFER_NUMBER", "")
 
         if not number:
@@ -220,8 +220,7 @@ def _build_check_business_hours(employee_config: dict) -> tuple:
     start = employee_config.get("business_hours_start", 9)
     end = employee_config.get("business_hours_end", 18)
     days = employee_config.get("business_days", [0, 1, 2, 3, 4])
-    import json as _json
-    days_literal = _json.dumps(days)
+    days_literal = json.dumps(days)
 
     method = f'''    @AgentBase.tool(
         name="check_business_hours",
