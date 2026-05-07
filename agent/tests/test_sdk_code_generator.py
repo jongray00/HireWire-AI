@@ -64,7 +64,7 @@ def _minimal_config():
     }
 
 
-def test_minimal_config_swml_parity(tmp_path, monkeypatch):
+def test_minimal_config_swml_parity(tmp_path):
     """Empty enabled_functions: prompt + post-prompt + language must match."""
     config = _minimal_config()
     # Generate
