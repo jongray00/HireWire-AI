@@ -7,6 +7,7 @@ Each employee has their own configuration and SWML endpoint.
 """
 
 import os
+import re
 import uuid
 import json
 import logging
@@ -25,6 +26,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
 import uvicorn
+
+from agent.sdk_code_templates import (
+    SWAIG_TEMPLATES,
+    datasphere_block,
+    env_var_header,
+)
+
+# Module-level language-code → language-name map.  Used by both
+# VirtualEmployeeAgent._get_language_name and _generate_sdk_code.
+_LANGUAGE_MAP = {
+    "en": "English", "en-US": "English", "en-GB": "English",
+    "en-AU": "English", "en-IN": "English", "en-NZ": "English",
+    "es": "Spanish", "es-ES": "Spanish", "es-419": "Spanish",
+    "fr": "French", "fr-FR": "French", "fr-CA": "French",
+    "de": "German", "de-DE": "German",
+    "it": "Italian", "it-IT": "Italian",
+    "pt": "Portuguese", "pt-BR": "Portuguese", "pt-PT": "Portuguese",
+    "ja": "Japanese", "ja-JP": "Japanese",
+    "zh": "Chinese", "zh-CN": "Chinese",
+    "ko": "Korean", "ko-KR": "Korean",
+    "hi": "Hindi", "ru": "Russian", "nl": "Dutch", "pl": "Polish",
+    "sv": "Swedish", "sv-SE": "Swedish",
+    "da": "Danish", "da-DK": "Danish",
+    "tr": "Turkish", "vi": "Vietnamese", "uk": "Ukrainian",
+    "multi": "Multilingual",
+}
 
 # Load environment variables from .env file
 load_dotenv()
@@ -133,29 +160,7 @@ class VirtualEmployeeAgent(AgentBase):
 
     def _get_language_name(self, code: str) -> str:
         """Get language name from code"""
-        lang_map = {
-            'en': 'English', 'en-US': 'English', 'en-GB': 'English',
-            'en-AU': 'English', 'en-IN': 'English', 'en-NZ': 'English',
-            'es': 'Spanish', 'es-ES': 'Spanish', 'es-419': 'Spanish',
-            'fr': 'French', 'fr-FR': 'French', 'fr-CA': 'French',
-            'de': 'German', 'de-DE': 'German',
-            'it': 'Italian', 'it-IT': 'Italian',
-            'pt': 'Portuguese', 'pt-BR': 'Portuguese', 'pt-PT': 'Portuguese',
-            'ja': 'Japanese', 'ja-JP': 'Japanese',
-            'zh': 'Chinese', 'zh-CN': 'Chinese',
-            'ko': 'Korean', 'ko-KR': 'Korean',
-            'hi': 'Hindi',
-            'ru': 'Russian',
-            'nl': 'Dutch',
-            'pl': 'Polish',
-            'sv': 'Swedish', 'sv-SE': 'Swedish',
-            'da': 'Danish', 'da-DK': 'Danish',
-            'tr': 'Turkish',
-            'vi': 'Vietnamese',
-            'uk': 'Ukrainian',
-            'multi': 'Multilingual',
-        }
-        return lang_map.get(code, 'English')
+        return _LANGUAGE_MAP.get(code, "English")
 
     def _update_personality(self):
         """Update agent personality from employee config using POM sections"""
@@ -277,7 +282,7 @@ class VirtualEmployeeAgent(AgentBase):
                 if len(doc_descriptions) > 1:
                     routing = "You have access to these knowledge bases:\n" + "\n".join(doc_descriptions)
                     routing += "\nChoose the most relevant one based on the caller's question."
-                    self.add_pom_section("Knowledge Base Routing", body=routing)
+                    self.prompt_add_section("Knowledge Base Routing", body=routing)
             else:
                 if not documents:
                     logger.info(f"  search_knowledge enabled but no documents uploaded")
@@ -292,12 +297,22 @@ class VirtualEmployeeAgent(AgentBase):
                     self.employee_config['knowledge_error'] = f"Missing credentials: {', '.join(missing)}"
 
         # Remove SWAIG tools not in the enabled list
-        # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter
+        # Note: search_knowledge is a skill, not a SWAIG tool — skip it in this filter.
+        # Also skip functions registered by skills (e.g. DataSphere) so they are
+        # not mistakenly wiped out by the cleanup loop.
         swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
         if enabled_functions:
+            # Collect function names registered by skills (e.g. DataSphere) so the
+            # removal loop below never wipes them out. Skills set their tool_name
+            # attribute during setup().
+            skill_function_names: set[str] = {
+                getattr(instance, "tool_name", None)
+                for instance in self.skill_manager.loaded_skills.values()
+                if getattr(instance, "tool_name", None)
+            }
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
-                if func_name not in swaig_functions:
+                if func_name not in swaig_functions and func_name not in skill_function_names:
                     self._tool_registry.remove_function(func_name)
                     logger.info(f"  Removed function '{func_name}' (not in enabled list)")
 
@@ -1529,48 +1544,124 @@ async def get_employee(employee_id: str = Path(...)):
 def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
     """Render runnable Python that, when executed, builds the live agent's SWML.
 
-    The output uses signalwire-agents SDK constructs (AgentBase, prompt_add_section,
-    set_post_prompt, add_language) — the same APIs the live VirtualEmployeeAgent in
-    this file uses. Identifiers, voice, language, prompt body, greeting, and enabled
-    function ids are interpolated from the stored config.
+    Mirrors VirtualEmployeeAgent.__init__ in this file: same add_language call
+    (with speech_fillers + function_fillers), same three prompt sections
+    (Identity / Instructions / Voice Interaction Guidelines), same conditional
+    SMS-offer bullet, same temperature, same rich post-prompt, same DataSphere
+    skill registration logic, and emits real handler bodies for every enabled
+    SWAIG function with per-environment values read from os.environ.
     """
     name = employee_config.get("name", "Employee")
-    role = employee_config.get("role", "Assistant")
+    role = employee_config.get("role", "Virtual Assistant")
     employee_id = employee_config.get("id", "employee")
     voice = employee_config.get("voice", "openai.nova")
-    language = employee_config.get("language", "en-US")
+    language_code = employee_config.get("language", "en-US")
     temperature = employee_config.get("temperature", 0.7)
-    greeting = employee_config.get("greeting", "")
+    greeting = employee_config.get("greeting", f"Hello, I am {name}.")
     prompt_body = employee_config.get("prompt", "")
     enabled_functions = employee_config.get("enabled_functions") or []
-    business_hours_start = employee_config.get("business_hours_start", 9)
-    business_hours_end = employee_config.get("business_hours_end", 18)
-    business_days = employee_config.get("business_days", [0, 1, 2, 3, 4])
 
-    # Build a class name from the agent name: "Sales Agent" -> "SalesAgent"
-    class_name = "".join(word.capitalize() or "_" for word in (name.split() or ["Agent"])) or "Agent"
+    # Resolve language name the same way the live agent does.
+    language_name = _LANGUAGE_MAP.get(language_code, "English")
 
-    # Pretty-print the function list as a Python literal.
-    fn_literal = json.dumps(enabled_functions)
-    days_literal = json.dumps(business_days)
+    # Sanitize class name: strip non-identifier chars, guard leading digits.
+    raw_class = "".join(word.capitalize() for word in (name.split() or ["Agent"]))
+    class_name = re.sub(r"[^A-Za-z0-9]", "", raw_class) or "Agent"
+    if class_name and class_name[0].isdigit():
+        class_name = "Agent" + class_name
 
-    # Use a triple-quoted prompt body. Escape any embedded triple quotes.
-    safe_prompt = prompt_body.replace('"""', '\\"\\"\\"')
-    safe_greeting = greeting.replace('"', '\\"')
+    # Build voice-interaction guidelines (mirror _update_personality lines 171-185).
+    guidelines = [
+        "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
+        "Be conversational and natural, not robotic",
+        "Listen fully before responding",
+        "If you are unsure about something, say so and offer to connect the caller with a human",
+        "Always end interactions with a clear next step",
+    ]
+    if "send_summary_sms" in enabled_functions:
+        guidelines.append(
+            "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
+            "If yes, ask for their phone number, then use the send_summary_sms function."
+        )
+
+    guidelines_literal = json.dumps(guidelines, indent=8).replace("\n", "\n        ")
+
+    # Identity section body (mirror _update_personality line 161-164).
+    # Use repr() to produce a safe Python string literal — handles all escaping.
+    identity_body_raw = f'You are {name}, a {role}. Your greeting is: "{greeting}"'
+    identity_body_literal = repr(identity_body_raw)  # e.g. 'You are ...' with proper escaping
+
+    # Instructions section is conditional on prompt_body being non-empty.
+    prompt_body_literal = repr(prompt_body)
+    instructions_block = (
+        f'        self.prompt_add_section("Instructions", body={prompt_body_literal})\n'
+        if prompt_body else ""
+    )
+
+    # Mirror live agent: if enabled_functions is empty, ALL known templates are emitted
+    # (live VirtualEmployeeAgent has all tools as class methods and only removes them
+    # when enabled_functions is non-empty — see _configure_functions's `if enabled_functions:`).
+    functions_to_emit = (
+        list(SWAIG_TEMPLATES.keys()) if not enabled_functions
+        else [f for f in enabled_functions if f != "search_knowledge"]
+    )
+
+    # Compose enabled SWAIG handlers, de-duping helpers.
+    swaig_methods: list = []
+    helpers: dict = {}
+    unknown_warnings: list = []
+    for fn_id in functions_to_emit:
+        if fn_id == "search_knowledge":
+            continue  # handled by datasphere_block
+        builder = SWAIG_TEMPLATES.get(fn_id)
+        if builder is None:
+            unknown_warnings.append(f"    # WARN: skipped unknown function '{fn_id}'")
+            continue
+        method_src, builder_helpers = builder(employee_config)
+        swaig_methods.append(method_src)
+        for hname, hsrc in builder_helpers.items():
+            helpers.setdefault(hname, hsrc)
+
+    # Combine swaig/helpers/unknown into a single class-body tail so empty blocks
+    # don't leave behind multiple blank lines before `if __name__`.
+    class_body_tail_parts = [
+        chunk for chunk in (
+            "\n\n".join(swaig_methods),
+            "\n\n".join(helpers.values()),
+            "\n".join(unknown_warnings),
+        ) if chunk
+    ]
+    class_body_tail = "\n\n".join(class_body_tail_parts)
+    datasphere_lines = datasphere_block(employee_config)
+
+    header = env_var_header(employee_config, enabled_functions)
+
+    # Post-prompt mirrors _configure_post_prompt verbatim.
+    # Use repr() so the Python literal in the generated file is always valid,
+    # regardless of embedded quotes or backslashes.
+    _live_post_prompt = (
+        "You have just finished a phone conversation. Produce a JSON object summarizing it. "
+        "ALWAYS produce valid JSON — do not add commentary, do not wrap in code fences, "
+        "do not refuse. If the call was short, silent, or had no clear content, still "
+        "produce the JSON with reasonable defaults (empty strings, empty arrays, null where appropriate).\n"
+        "\n"
+        "Required fields (every one must appear, even if empty):\n"
+        '  "summary": 2-3 sentence summary of what happened. If nothing happened, say so plainly.\n'
+        '  "caller_intent": one sentence describing what the caller wanted. Empty string if unclear.\n'
+        '  "outcome": one of "resolved" | "transferred" | "abandoned" | "follow_up_needed" | "no_outcome".\n'
+        '  "sentiment": one of "positive" | "neutral" | "negative".\n'
+        '  "topics": array of 1-5 lowercase topic keywords. Empty array if none.\n'
+        '  "follow_up": any action items, or null.\n'
+        '  "key_quotes": array of up to 3 short verbatim quotes from the caller. Empty array if none.\n'
+        '  "next_steps": array of recommended next steps for the agent owner. Empty array if none.\n'
+        "\n"
+        "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
+    )
+    post_prompt_literal = repr(_live_post_prompt)
 
     return f'''#!/usr/bin/env python3
-"""
-{name} ({role})
-
-Generated agent code. Running this file produces the same SWML that the live
-HireWire backend serves for this agent at /swml/{employee_id}.
-
-Requires:
-    pip install signalwire-agents
-
-Usage:
-    python {employee_id}.py     # runs the agent on http://localhost:3000
-"""
+{header}
+import os
 
 from signalwire_agents import AgentBase, SwaigFunctionResult
 
@@ -1582,44 +1673,38 @@ class {class_name}(AgentBase):
         super().__init__(
             name="{name}",
             route="/swml/{employee_id}",
-            host="0.0.0.0",
-            port=3000,
         )
 
-        # Voice + language
-        self.add_language(name="English", code="{language}", voice="{voice}")
+        self.add_language(
+            name="{language_name}",
+            code="{language_code}",
+            voice="{voice}",
+            speech_fillers=[
+                "Let me help you with that...",
+                "One moment please...",
+                "I'm processing your request...",
+            ],
+            function_fillers=[
+                "Let me check on that for you...",
+                "I'm looking that up now...",
+            ],
+        )
+
+        self.prompt_add_section(
+            "Identity",
+            body={identity_body_literal},
+        )
+{instructions_block}        self.prompt_add_section(
+            "Voice Interaction Guidelines",
+            bullets={guidelines_literal},
+        )
+
         self.set_param("temperature", {temperature})
 
-        # Greeting (the first thing the caller hears)
-        self.set_param("greeting", "{safe_greeting}")
+{datasphere_lines}
+        self.set_post_prompt({post_prompt_literal})
 
-        # System prompt — what the agent knows about its job
-        self.prompt_add_section(
-            "Identity and mission",
-            """{safe_prompt}""",
-        )
-
-        # Enabled SWAIG functions. Implementations omitted for brevity; in the
-        # live HireWire backend they are wired to per-employee handlers (see
-        # VirtualEmployeeAgent in agent/main.py).
-        self._enabled_functions = {fn_literal}
-
-        # Business hours metadata (used by check_business_hours, if enabled)
-        self._business_hours = dict(
-            start={business_hours_start},
-            end={business_hours_end},
-            days={days_literal},
-        )
-
-        # Post-prompt summary (matches HireWire's call-log schema)
-        self.set_post_prompt(
-            "You have just finished a phone conversation. Produce a JSON object "
-            "summarizing it with these fields: summary, caller_intent, outcome "
-            "(resolved|transferred|abandoned|follow_up_needed|no_outcome), "
-            "sentiment (positive|neutral|negative), topics (array), follow_up, "
-            "key_quotes (array of up to 3 short quotes), next_steps (array). "
-            "Output ONLY the JSON object."
-        )
+{class_body_tail}
 
 
 if __name__ == "__main__":
