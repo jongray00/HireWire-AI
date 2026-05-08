@@ -5,13 +5,19 @@ import TemplateCarouselCard from "./TemplateCarouselCard";
 
 /**
  * DashboardSplitHero — two-column hero on the dashboard home.
- * Path A (left): wizard call. Path B (right): template carousel.
+ * When `wizardEnabled` is true: WizardCallCard (left) + TemplateCarouselCard (right).
+ * When `wizardEnabled` is false: TemplateCarouselCard only, full-width.
  * Stacks vertically below `lg:`.
- *
- * Position on the page (top vs bottom) is decided by the dashboard page based
- * on whether any employees exist.
  */
-export default function DashboardSplitHero({ templates = [] }) {
+export default function DashboardSplitHero({ templates = [], wizardEnabled = false }) {
+  if (!wizardEnabled) {
+    return (
+      <section aria-label="Create an agent">
+        <TemplateCarouselCard templates={templates} />
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Create an agent"

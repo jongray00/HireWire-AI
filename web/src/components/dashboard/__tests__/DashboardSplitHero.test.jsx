@@ -1,34 +1,37 @@
+// web/src/components/dashboard/__tests__/DashboardSplitHero.test.jsx
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import DashboardSplitHero from "../DashboardSplitHero";
 
-vi.mock("../WizardBanner", () => ({
-  default: () => <div data-testid="wizard-banner-mock">MOCK_BANNER</div>,
+vi.mock("../WizardCallCard", () => ({
+  default: () => <div data-testid="wizard-call-card">wizard</div>,
+}));
+vi.mock("../TemplateCarouselCard", () => ({
+  default: ({ templates }) => (
+    <div data-testid="template-carousel">{templates.length} templates</div>
+  ),
 }));
 
+import DashboardSplitHero from "../DashboardSplitHero";
+
 describe("DashboardSplitHero", () => {
-  it("renders both columns", () => {
-    render(
-      <MemoryRouter>
-        <DashboardSplitHero templates={[]} />
-      </MemoryRouter>
-    );
-    expect(screen.getByText(/build by voice/i)).toBeInTheDocument();
-    expect(screen.getByText(/pick a template/i)).toBeInTheDocument();
-    expect(screen.getByTestId("wizard-banner-mock")).toBeInTheDocument();
+  const templates = [{ id: "t1" }, { id: "t2" }];
+
+  it("renders only TemplateCarouselCard when wizardEnabled is false", () => {
+    render(<DashboardSplitHero templates={templates} wizardEnabled={false} />);
+    expect(screen.queryByTestId("wizard-call-card")).toBeNull();
+    expect(screen.getByTestId("template-carousel")).toBeInTheDocument();
   });
 
-  it("passes templates through to the carousel", () => {
-    const Icon = () => null;
-    const tpls = [
-      { id: "a", name: "Alpha", description: "A", color: "blue", icon: Icon, defaultData: {} },
-    ];
-    render(
-      <MemoryRouter>
-        <DashboardSplitHero templates={tpls} />
-      </MemoryRouter>
-    );
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
+  it("renders both cards when wizardEnabled is true", () => {
+    render(<DashboardSplitHero templates={templates} wizardEnabled={true} />);
+    expect(screen.getByTestId("wizard-call-card")).toBeInTheDocument();
+    expect(screen.getByTestId("template-carousel")).toBeInTheDocument();
+  });
+
+  it("defaults to wizardEnabled=false when prop is omitted", () => {
+    render(<DashboardSplitHero templates={templates} />);
+    expect(screen.queryByTestId("wizard-call-card")).toBeNull();
+    expect(screen.getByTestId("template-carousel")).toBeInTheDocument();
   });
 });
