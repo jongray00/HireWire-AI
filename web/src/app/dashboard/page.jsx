@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import DashboardSplitHero from "@/components/dashboard/DashboardSplitHero";
+import { useWizardMode } from "@/app/hooks/useWizardMode";
 import { TEMPLATES } from "@/lib/templates";
 
 export default function DashboardPage() {
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { enabled: wizardEnabled } = useWizardMode();
 
   useEffect(() => {
     loadDashboardData();
@@ -109,7 +111,7 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} />}
+      {showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} wizardEnabled={wizardEnabled} />}
 
       {/* Stats Grid */}
       {loading ? (
@@ -205,7 +207,7 @@ export default function DashboardPage() {
         </div>
       </details>
 
-      {!showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} />}
+      {!showHeroAtTop && <DashboardSplitHero templates={TEMPLATES} wizardEnabled={wizardEnabled} />}
     </div>
   );
 }

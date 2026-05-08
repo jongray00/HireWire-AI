@@ -16,7 +16,9 @@ import {
   Wrench,
   Eye,
   EyeOff,
+  Wand2,
 } from "lucide-react";
+import { useWizardMode } from "@/app/hooks/useWizardMode";
 
 export default function SettingsPage() {
   const [domain, setDomain] = useState("");
@@ -39,6 +41,22 @@ export default function SettingsPage() {
 
   // Phone numbers
   const [phoneNumbers, setPhoneNumbers] = useState([]);
+
+  const {
+    enabled: wizardEnabled,
+    loading: wizardLoading,
+    setEnabled: setWizardEnabled,
+  } = useWizardMode();
+  const [wizardSaveError, setWizardSaveError] = useState(null);
+
+  const handleWizardToggle = async () => {
+    setWizardSaveError(null);
+    try {
+      await setWizardEnabled(!wizardEnabled);
+    } catch (err) {
+      setWizardSaveError(err.message || "Failed to save Wizard Mode");
+    }
+  };
 
   useEffect(() => {
     fetchDomain();
@@ -344,6 +362,48 @@ export default function SettingsPage() {
             status="ok"
           />
         </div>
+      </div>
+
+      {/* Wizard Mode */}
+      <div className="bg-[#0A0A0A] border border-[#1F1F1F] p-6">
+        <h2 className="text-lg lg:text-xl font-medium text-[#FAFAFA] tracking-tight mb-1 flex items-center space-x-2">
+          <Wand2 size={20} />
+          <span>Wizard Mode</span>
+        </h2>
+        <p className="text-sm text-[#A3A3A3] mb-4">
+          Show the guided wizard panel on the dashboard. Off by default.
+        </p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-[#FAFAFA]">
+            {wizardLoading
+              ? "Loading…"
+              : wizardEnabled
+                ? "Wizard is visible on the dashboard."
+                : "Wizard is hidden on the dashboard."}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={wizardEnabled}
+            aria-label="Toggle Wizard Mode"
+            disabled={wizardLoading}
+            onClick={handleWizardToggle}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              wizardEnabled ? "bg-[#FAFAFA]" : "bg-[#1F1F1F]"
+            } ${wizardLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                wizardEnabled
+                  ? "translate-x-6 bg-[#0A0A0A]"
+                  : "translate-x-1 bg-[#FAFAFA]"
+              }`}
+            />
+          </button>
+        </div>
+        {wizardSaveError && (
+          <p className="mt-3 text-sm text-red-400">{wizardSaveError}</p>
+        )}
       </div>
 
       {/* Domain Configuration */}

@@ -8,6 +8,13 @@ vi.mock("@/components/dashboard/WizardBanner", () => ({
   default: () => <div data-testid="wizard-banner-mock" />,
 }));
 
+// Wizard defaults to disabled on this branch; this positioning test was
+// written when the wizard hero was always rendered, so force it on so the
+// "build by voice" hero copy (owned by WizardCallCard) is present.
+vi.mock("@/app/hooks/useWizardMode", () => ({
+  useWizardMode: () => ({ enabled: true, loading: false, setEnabled: vi.fn() }),
+}));
+
 const mockFetch = (employees) => {
   global.fetch = vi.fn(async (url) => {
     if (String(url).includes("/api/employees/sync")) {
