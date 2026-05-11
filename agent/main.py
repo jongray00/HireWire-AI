@@ -301,6 +301,11 @@ class VirtualEmployeeAgent(AgentBase):
         # Also skip functions registered by skills (e.g. DataSphere) so they are
         # not mistakenly wiped out by the cleanup loop.
         swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
+
+        # Transition tools are part of the greet→assist→wrap_up state machine
+        # and must remain registered regardless of enabled_functions.
+        BUILTIN_TRANSITIONS = {"begin_assist", "wrap_up_call"}
+
         if enabled_functions:
             # Collect function names registered by skills (e.g. DataSphere) so the
             # removal loop below never wipes them out. Skills set their tool_name
@@ -312,7 +317,11 @@ class VirtualEmployeeAgent(AgentBase):
             }
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
-                if func_name not in swaig_functions and func_name not in skill_function_names:
+                if (
+                    func_name not in swaig_functions
+                    and func_name not in skill_function_names
+                    and func_name not in BUILTIN_TRANSITIONS
+                ):
                     self._tool_registry.remove_function(func_name)
                     logger.info(f"  Removed function '{func_name}' (not in enabled list)")
 
@@ -677,6 +686,24 @@ class VirtualEmployeeAgent(AgentBase):
                 }
             })
             return result
+
+    @AgentBase.tool(
+        name="begin_assist",
+        description="Call this when the caller has stated their reason for calling and you are ready to start helping them.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def begin_assist(self, args, raw_data):
+        """Step transition: greet -> assist."""
+        return SwaigFunctionResult("Got it, let me help with that.")
+
+    @AgentBase.tool(
+        name="wrap_up_call",
+        description="Call this when the caller's request is fully addressed and you are ready to close the call.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def wrap_up_call(self, args, raw_data):
+        """Step transition: assist -> wrap_up."""
+        return SwaigFunctionResult("Let me wrap things up.")
 
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
         """Override to dynamically set video URLs and enable live transcription"""
