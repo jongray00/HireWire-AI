@@ -1,19 +1,34 @@
 [project]
-name = "repl-nix-workspace"
+name = "hirewire"
 version = "0.1.0"
-description = "Add your description here"
+description = "HireWire AI agent backend"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.119.1",
-    "python-dotenv>=1.1.1",
-    "signalwire-agents>=0.1.54",
-    "uvicorn[standard]>=0.38.0",
+    "cryptography==44.0.0",
+    "fastapi==0.119.1",
+    "python-dotenv==1.1.1",
+    "python-multipart==0.0.27",
+    "slowapi==0.1.9",
+    "tenacity==9.0.0",
+    "signalwire-agents==1.1.0",
+    "structlog==25.4.0",
+    "uvicorn[standard]==0.38.0",
+    "sendgrid>=6.10.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+    "pytest-cov==6.0.0",
+    "respx==0.22.0",
+    "freezegun==1.5.1",
+    "httpx==0.28.1",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["agent/tests"]
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agent*"]
