@@ -152,6 +152,9 @@ class VirtualEmployeeAgent(AgentBase):
         # Configure personality
         self._update_personality()
 
+        # Build the 3-step state machine: greet → assist → wrap_up
+        self._build_employee_context()
+
         # Configure post-prompt for call analytics
         self._configure_post_prompt()
 
@@ -230,6 +233,76 @@ class VirtualEmployeeAgent(AgentBase):
             "\n"
             "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
         )
+
+    def _build_employee_context(self):
+        """Define a 3-step state machine for the inbound call:
+            greet → assist → wrap_up
+
+        Mirrors the wizard's contexts/steps structure but with a generic
+        flow suitable for any employee. Each step constrains which SWAIG
+        functions the AI can call; the AI advances by calling begin_assist
+        or wrap_up_call.
+        """
+        name = self.employee_config.get("name", "Assistant")
+        role = self.employee_config.get("role", "Virtual Assistant")
+        greeting = self.employee_config.get("greeting", f"Hello, I am {name}.")
+        prompt_body = self.employee_config.get("prompt", "") or "Help the caller with their request."
+        enabled_functions = self.employee_config.get("enabled_functions") or []
+
+        # Function distribution per step
+        greet_functions = ["begin_assist"]
+        if "check_business_hours" in enabled_functions:
+            greet_functions.append("check_business_hours")
+
+        assist_functions = [fn for fn in enabled_functions if fn != "send_summary_sms"]
+        assist_functions.append("wrap_up_call")
+
+        wrap_up_functions = []
+        if "send_summary_sms" in enabled_functions:
+            wrap_up_functions.append("send_summary_sms")
+
+        # Step text bodies
+        greet_text = (
+            f'You are {name}, a {role}. Open the call with: "{greeting}". '
+            "After greeting, listen for what the caller needs. Keep replies to 1-3 sentences. "
+            "When the caller has stated what they're calling about, call begin_assist() to start helping."
+        )
+
+        assist_text = (
+            f"{prompt_body}\n\n"
+            "Use the available SWAIG functions when appropriate. When the caller's request is fully "
+            "addressed, call wrap_up_call() to close the call gracefully."
+        )
+
+        wrap_up_text_parts = ["Wrap the call. Briefly recap what happened in 1 sentence."]
+        if "send_summary_sms" in enabled_functions:
+            wrap_up_text_parts.append(
+                "Then offer to text a summary to the caller's phone. If they say yes, ask for the "
+                "number and call send_summary_sms with a short summary."
+            )
+        wrap_up_text_parts.append("Thank the caller and end the call.")
+        wrap_up_text = " ".join(wrap_up_text_parts)
+
+        # Build the state machine
+        contexts = self.define_contexts()
+        ctx = contexts.add_context("default")
+
+        ctx.add_step("greet") \
+            .set_text(greet_text) \
+            .set_step_criteria("Caller has stated their reason for calling") \
+            .set_valid_steps(["assist"]) \
+            .set_functions(greet_functions)
+
+        ctx.add_step("assist") \
+            .set_text(assist_text) \
+            .set_step_criteria("Caller's request handled or escalated") \
+            .set_valid_steps(["wrap_up"]) \
+            .set_functions(assist_functions)
+
+        ctx.add_step("wrap_up") \
+            .set_text(wrap_up_text) \
+            .set_functions(wrap_up_functions)
+        # wrap_up is terminal — no set_valid_steps()
 
     def _configure_functions(self):
         """Configure which functions are enabled for this employee"""
