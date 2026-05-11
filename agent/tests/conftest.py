@@ -18,6 +18,8 @@ def isolated_env(monkeypatch, tmp_path, encryption_key):
     To test missing/invalid env, use monkeypatch.delenv() or monkeypatch.setenv()
     inside the test — the per-test monkeypatch will override these autouse values.
     """
+    # .env file may have ALLOW_HTTP_URLS=1; reset for test isolation
+    monkeypatch.delenv("ALLOW_HTTP_URLS", raising=False)
     monkeypatch.setenv("ENCRYPTION_KEY", encryption_key)
     monkeypatch.setenv("AGENT_API_KEY", "test-" + secrets.token_urlsafe(32))
     monkeypatch.setenv("SENDGRID_API_KEY", "SG.test")
