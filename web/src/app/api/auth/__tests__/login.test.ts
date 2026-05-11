@@ -35,6 +35,7 @@ import {
   ProvisioningError,
 } from '@/lib/signalwire-provisioning';
 import { getDb, closeDb } from '@/lib/db';
+import { _resetRateLimitForTests } from '@/lib/rate-limit';
 
 const KEY_B64 = 'dGVzdC1rZXktMzItYnl0ZXMtZm9yLWFlcy1nY20hISE=';
 
@@ -60,6 +61,7 @@ beforeEach(() => {
   process.env.HIREWIRE_APP_DOMAIN = 'http://localhost:5001';
   process.env.DATABASE_PATH = join(tmpDir, 'test.db');
   vi.clearAllMocks();
+  _resetRateLimitForTests();
   seedProjectsTable();
 });
 
@@ -154,6 +156,48 @@ describe('POST /api/auth/login', () => {
       makeReq({ signalwire_project_id: 'sw-proj-1' }),
     );
     expect(resp.status).toBe(400);
+  });
+
+  it('returns 429 after exceeding the per-IP rate limit', async () => {
+    (validateCredentialsViaAgent as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new AgentClientError(401, 'invalid_credentials'),
+    );
+
+    function makeReqWithIp(body: unknown): Request {
+      return new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'content-type': 'application/json',
+          'x-forwarded-for': '9.9.9.9',
+        },
+      });
+    }
+
+    // 5 requests should be allowed (and return 401 from mocked agent).
+    for (let i = 0; i < 5; i++) {
+      const resp = await login(
+        makeReqWithIp({
+          space_url: 'acme.signalwire.com',
+          signalwire_project_id: 'sw-proj-1',
+          api_token: 'bad',
+        }),
+      );
+      expect(resp.status).toBe(401);
+    }
+
+    // 6th request from same IP within window should be rate-limited.
+    const resp = await login(
+      makeReqWithIp({
+        space_url: 'acme.signalwire.com',
+        signalwire_project_id: 'sw-proj-1',
+        api_token: 'bad',
+      }),
+    );
+    expect(resp.status).toBe(429);
+    expect(resp.headers.get('Retry-After')).toBeTruthy();
+    const body = await resp.json();
+    expect(body.error).toBe('rate_limited');
   });
 });
 
