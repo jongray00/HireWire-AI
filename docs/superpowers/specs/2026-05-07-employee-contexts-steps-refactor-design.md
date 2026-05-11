@@ -1,7 +1,7 @@
 # Employee Agent Contexts+Steps Refactor
 
 **Date:** 2026-05-07
-**Status:** Design approved, pending plan
+**Status:** Implemented
 **Owner:** HireWire-AI
 **Depends on:** PR #1 (SDK code generator deeper pass — branch `worktree-sdk-code-generator`) being merged first.
 
