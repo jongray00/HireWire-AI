@@ -21,7 +21,7 @@ from typing import Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 
 from signalwire_agents import AgentBase, SwaigFunctionResult
-from fastapi import FastAPI, Request, HTTPException, Path
+from fastapi import FastAPI, Request, HTTPException, Path, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
@@ -33,6 +33,35 @@ from agent.sdk_code_templates import (
     datasphere_block,
     env_var_header,
 )
+from agent.lib import webhook_auth, db, config
+
+
+def require_webhook_basic_auth(
+    authorization: str | None = Header(default=None),
+) -> webhook_auth.WebhookScope:
+    """FastAPI dependency that verifies per-project HTTP Basic Auth on
+    SignalWire webhook requests.
+
+    Returns the matching ``WebhookScope`` on success.  Raises ``HTTPException``
+    401 with ``WWW-Authenticate: Basic realm="HireWire"`` on any failure
+    (missing header, unknown user, wrong password, malformed header).
+    """
+    cfg = config.Config.load()
+    conn = db.open_connection(cfg.db_path)
+    try:
+        return webhook_auth.verify_webhook_basic_auth(
+            conn, authorization=authorization
+        )
+    except webhook_auth.WebhookAuthError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=str(exc),
+            headers={
+                "WWW-Authenticate": f'Basic realm="{webhook_auth.WEBHOOK_REALM}"'
+            },
+        )
+    finally:
+        conn.close()
 
 # Module-level language-code → language-name map.  Used by both
 # VirtualEmployeeAgent._get_language_name and _generate_sdk_code.
@@ -1993,13 +2022,21 @@ async def get_agent_info():
 
 # Health check endpoint
 @app.post("/api/post-prompt/{path:path}")
-async def proxy_post_prompt(path: str, request: Request):
+async def proxy_post_prompt(
+    path: str,
+    request: Request,
+    scope: webhook_auth.WebhookScope = Depends(require_webhook_basic_auth),
+):
     """Proxy post-prompt webhooks from SignalWire to the frontend.
 
     SignalWire calls the post_prompt_url that's set during on_swml_request — this
     URL is built from APP_DOMAIN (the ngrok tunnel) which forwards port 8000 to
     the agent. The post-prompt route lives in the frontend (port 5001), so we
     forward the full body and headers there. Returns the frontend's response.
+
+    Per-project Basic Auth is enforced via ``require_webhook_basic_auth``.
+    The matched ``WebhookScope`` is currently unused by the proxy body but
+    is available for downstream tagging / project pinning.
     """
     try:
         body = await request.body()
