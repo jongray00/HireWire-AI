@@ -166,23 +166,12 @@ class VirtualEmployeeAgent(AgentBase):
         return _LANGUAGE_MAP.get(code, "English")
 
     def _update_personality(self):
-        """Update agent personality from employee config using POM sections"""
-        name = self.employee_config.get('name', 'Assistant')
-        role = self.employee_config.get('role', 'Virtual Assistant')
-        greeting = self.employee_config.get('greeting', f'Hello, I am {name}.')
-        prompt = self.employee_config.get('prompt', '')
-
-        # Identity section
-        self.prompt_add_section(
-            "Identity",
-            body=f"You are {name}, a {role}. Your greeting is: \"{greeting}\""
-        )
-
-        # Main instructions from the user's prompt (may contain markdown sections)
-        if prompt:
-            self.prompt_add_section("Instructions", body=prompt)
-
-        # Voice interaction guidelines
+        """Set top-level cross-step config: voice-interaction guidelines POM
+        section, temperature, and speech_hints. Step-specific identity and
+        instructions live in the contexts/steps state machine — see
+        _build_employee_context.
+        """
+        # Voice interaction guidelines apply across all steps
         guidelines = [
             "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
             "Be conversational and natural, not robotic",
@@ -190,21 +179,15 @@ class VirtualEmployeeAgent(AgentBase):
             "If you are unsure about something, say so and offer to connect the caller with a human",
             "Always end interactions with a clear next step",
         ]
-
-        # Add SMS offer guideline if send_summary_sms is enabled
-        enabled_functions = self.employee_config.get('enabled_functions', [])
-        if 'send_summary_sms' in enabled_functions:
-            guidelines.append(
-                "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
-                "If yes, ask for their phone number, then use the send_summary_sms function."
-            )
+        # NOTE: the SMS-offer guideline is no longer added here — it lives in
+        # the wrap_up step's text (see _build_employee_context).
 
         self.prompt_add_section(
             "Voice Interaction Guidelines",
             bullets=guidelines
         )
 
-        # Set temperature
+        # Temperature applies across all steps
         temperature = self.employee_config.get('temperature', 0.7)
         self.set_param("temperature", temperature)
 
