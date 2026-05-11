@@ -38,3 +38,18 @@ def require_internal_auth(
     if not x_project_id:
         raise HTTPException(status_code=400, detail="missing_project_id_header")
     return ProjectScope(project_id=x_project_id)
+
+
+def require_api_key_only(
+    x_agent_api_key: str | None = Header(default=None),
+) -> None:
+    """API-key-only variant for endpoints where no project exists yet (e.g. login).
+
+    Spec §Flow A: the validate-credentials endpoint is called *before* the
+    projects row is written, so X-Project-Id is not yet known.
+    """
+    expected = _expected_key()
+    if not x_agent_api_key:
+        raise HTTPException(status_code=401, detail="missing_api_key")
+    if not hmac.compare_digest(x_agent_api_key, expected):
+        raise HTTPException(status_code=401, detail="invalid_api_key")
