@@ -1,30 +1,29 @@
 /**
- * Session API Endpoint
+ * Session API Endpoint (Phase 2)
  *
- * GET:    Returns current session info (projectId, spaceUrl) or 401
- * DELETE: Clears the session cookie (logout)
+ * GET: Returns the current Phase 2 session derived from the
+ *      `hirewire_session` JWT cookie. Used by the login page to
+ *      auto-redirect already-authenticated users to /dashboard.
+ *
+ *      Shape:
+ *        200 { authenticated: true,  projectId }
+ *        401 { authenticated: false }
+ *
+ * DELETE: Clears the `hirewire_session` cookie (logout fallback).
  */
 
-import { getSessionFromRequest, buildClearSessionCookie } from '@/lib/session';
-import { getUserByProjectId } from '@/lib/db';
+import { getSessionFromRequest, buildClearSessionCookie } from '@/lib/jwt';
 
 export async function GET(request) {
   const session = await getSessionFromRequest(request);
 
   if (!session) {
-    return Response.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
-  const user = getUserByProjectId(session.projectId);
-  if (!user) {
-    return Response.json({ error: 'User not found' }, { status: 401 });
+    return Response.json({ authenticated: false }, { status: 401 });
   }
 
   return Response.json({
-    projectId: user.project_id,
-    spaceUrl: user.space_url,
-    subscriberId: user.subscriber_id,
-    subscriberData: user.subscriber_data ? JSON.parse(user.subscriber_data) : null,
+    authenticated: true,
+    projectId: session.projectId,
   });
 }
 
