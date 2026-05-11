@@ -32,16 +32,16 @@ describe("WizardBanner", () => {
     window.__testWizardError = null;
   });
 
-  it("shows idle CTA bar with Call Now button", () => {
+  it("shows idle CTA bar with Call Wizard button", () => {
     render(<WizardBanner />);
     expect(screen.getByText("Setup Wizard")).toBeDefined();
-    expect(screen.getByText("Call Now")).toBeDefined();
-    expect(screen.getByText("Build agents with your voice")).toBeDefined();
+    expect(screen.getByText("Call Wizard")).toBeDefined();
+    expect(screen.getByText("Build a new AI agent by voice")).toBeDefined();
   });
 
-  it("calls startCall when Call Now is clicked", () => {
+  it("calls startCall when Call Wizard is clicked", () => {
     render(<WizardBanner />);
-    fireEvent.click(screen.getByText("Call Now").closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: /start setup wizard call/i }));
     expect(mockStartCall).toHaveBeenCalled();
   });
 
@@ -49,7 +49,7 @@ describe("WizardBanner", () => {
     window.__testWizardCalling = true;
     window.__testWizardConnectionState = "connecting";
     render(<WizardBanner />);
-    expect(screen.getByText("Connecting...")).toBeDefined();
+    expect(screen.getByText(/Connecting/)).toBeDefined();
     expect(screen.getByText("End")).toBeDefined();
   });
 
