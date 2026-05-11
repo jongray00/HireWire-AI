@@ -1,7 +1,7 @@
 # Call-Log Detail P.I.E. Viewer Parity
 
 **Date:** 2026-05-07
-**Status:** Design approved, pending plan
+**Status:** Implemented
 **Owner:** HireWire-AI
 **Depends on:** Sub-project 1 (`employee-contexts-steps` branch — Employee Contexts+Steps Refactor) being merged. Without it, no employee call logs will have state-change events to visualize, only function calls — but the State Flow tab still renders meaningfully thanks to function-call-only fallback parsing.
 
