@@ -422,6 +422,7 @@ source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "sendgrid" },
@@ -435,7 +436,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "freezegun" },
-    { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -447,7 +447,7 @@ requires-dist = [
     { name = "cryptography", specifier = "==44.0.0" },
     { name = "fastapi", specifier = "==0.119.1" },
     { name = "freezegun", marker = "extra == 'dev'", specifier = "==1.5.1" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.4" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.25.2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==6.0.0" },
