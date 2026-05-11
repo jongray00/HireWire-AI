@@ -10,7 +10,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 !web/src/lib/
 lib64/
 parts/
