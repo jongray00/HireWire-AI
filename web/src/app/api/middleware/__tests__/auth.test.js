@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSessionToken } from '@/lib/session';
+import { issueSession, SESSION_COOKIE_NAME } from '@/lib/jwt';
 
 // Mock the db module
 vi.mock('@/lib/db', () => ({
@@ -9,6 +9,10 @@ vi.mock('@/lib/db', () => ({
 
 import { getUserByProjectId } from '@/lib/db';
 import { requireAuth, optionalAuth } from '../auth';
+
+beforeEach(() => {
+  process.env.HIREWIRE_JWT_SECRET = 'test-secret-at-least-32-chars-long-xx';
+});
 
 function makeRequest(cookie) {
   const headers = cookie ? { Cookie: cookie } : {};
@@ -26,15 +30,15 @@ describe('requireAuth', () => {
   });
 
   it('returns 401 when user not in database', async () => {
-    const token = await createSessionToken({ projectId: 'missing', spaceUrl: 'test.sw.com' });
+    const token = await issueSession({ projectId: 'missing' });
     getUserByProjectId.mockReturnValue(null);
 
-    const result = await requireAuth(makeRequest(`sally_session=${token}`));
+    const result = await requireAuth(makeRequest(`${SESSION_COOKIE_NAME}=${token}`));
     expect(result.error).toBeDefined();
   });
 
   it('returns user data when session is valid', async () => {
-    const token = await createSessionToken({ projectId: 'proj-1', spaceUrl: 'test.sw.com' });
+    const token = await issueSession({ projectId: 'proj-1' });
     getUserByProjectId.mockReturnValue({
       project_id: 'proj-1',
       space_url: 'test.sw.com',
@@ -43,7 +47,7 @@ describe('requireAuth', () => {
       subscriber_data: null,
     });
 
-    const result = await requireAuth(makeRequest(`sally_session=${token}`));
+    const result = await requireAuth(makeRequest(`${SESSION_COOKIE_NAME}=${token}`));
     expect(result.error).toBeUndefined();
     expect(result.projectId).toBe('proj-1');
     expect(result.apiToken).toBe('tok-123');
@@ -59,7 +63,7 @@ describe('optionalAuth', () => {
   });
 
   it('returns user data when session is valid', async () => {
-    const token = await createSessionToken({ projectId: 'proj-1', spaceUrl: 'test.sw.com' });
+    const token = await issueSession({ projectId: 'proj-1' });
     getUserByProjectId.mockReturnValue({
       project_id: 'proj-1',
       space_url: 'test.sw.com',
@@ -68,7 +72,7 @@ describe('optionalAuth', () => {
       subscriber_data: null,
     });
 
-    const result = await optionalAuth(makeRequest(`sally_session=${token}`));
+    const result = await optionalAuth(makeRequest(`${SESSION_COOKIE_NAME}=${token}`));
     expect(result.projectId).toBe('proj-1');
   });
 });
