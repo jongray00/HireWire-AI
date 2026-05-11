@@ -12,7 +12,7 @@
  *   const { projectId, spaceUrl, apiToken } = auth;
  */
 
-import { getSessionFromRequest } from '@/lib/session';
+import { getSessionFromRequest } from '@/lib/jwt';
 import { getUserByProjectId } from '@/lib/db';
 
 /**

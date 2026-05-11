@@ -32,6 +32,10 @@ venv/
 ENV/
 env/
 
+# Claude Code state
+.claude/
+.coverage
+
 # Node.js
 node_modules/
 npm-debug.log*

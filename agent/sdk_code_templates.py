@@ -528,3 +528,94 @@ def _build_send_email(employee_config: dict) -> tuple:
 
 
 SWAIG_TEMPLATES["send_email"] = _build_send_email
+
+
+def _build_begin_assist(employee_config: dict) -> tuple:
+    method = '''    @AgentBase.tool(
+        name="begin_assist",
+        description="Call this when the caller has stated their reason for calling and you are ready to start helping them.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def begin_assist(self, args, raw_data):
+        """Step transition: greet -> assist."""
+        return SwaigFunctionResult("Got it, let me help with that.")'''
+    return method, {}
+
+
+def _build_wrap_up_call(employee_config: dict) -> tuple:
+    method = '''    @AgentBase.tool(
+        name="wrap_up_call",
+        description="Call this when the caller's request is fully addressed and you are ready to close the call.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def wrap_up_call(self, args, raw_data):
+        """Step transition: assist -> wrap_up."""
+        return SwaigFunctionResult("Let me wrap things up.")'''
+    return method, {}
+
+
+SWAIG_TEMPLATES["begin_assist"] = _build_begin_assist
+SWAIG_TEMPLATES["wrap_up_call"] = _build_wrap_up_call
+
+
+def contexts_block(employee_config: dict) -> str:
+    """Emit the `define_contexts()` + 3 `add_step(...)` calls mirroring
+    VirtualEmployeeAgent._build_employee_context.
+
+    Returns a code-string ready to insert into the generated agent's
+    __init__ method at one indent level inside the class body.
+    """
+    name = employee_config.get("name", "Assistant")
+    role = employee_config.get("role", "Virtual Assistant")
+    greeting = employee_config.get("greeting") or f"Hello, I am {name}."
+    prompt_body = employee_config.get("prompt") or "Help the caller with their request."
+    enabled_functions = employee_config.get("enabled_functions") or []
+
+    greet_functions = ["begin_assist"]
+    if "check_business_hours" in enabled_functions:
+        greet_functions.append("check_business_hours")
+    assist_functions = [fn for fn in enabled_functions if fn != "send_summary_sms"]
+    assist_functions.append("wrap_up_call")
+    wrap_up_functions = ["send_summary_sms"] if "send_summary_sms" in enabled_functions else []
+
+    greet_text = (
+        f'You are {name}, a {role}. Open the call with: "{greeting}". '
+        "After greeting, listen for what the caller needs. Keep replies to 1-3 sentences. "
+        "When the caller has stated what they're calling about, call begin_assist() to start helping."
+    )
+
+    assist_text = (
+        f"{prompt_body}\n\n"
+        "Use the available SWAIG functions when appropriate. When the caller's request is fully "
+        "addressed, call wrap_up_call() to close the call gracefully."
+    )
+
+    wrap_up_parts = ["Wrap the call. Briefly recap what happened in 1 sentence."]
+    if "send_summary_sms" in enabled_functions:
+        wrap_up_parts.append(
+            "Then offer to text a summary to the caller's phone. If they say yes, ask for the "
+            "number and call send_summary_sms with a short summary."
+        )
+    wrap_up_parts.append("Thank the caller and end the call.")
+    wrap_up_text = " ".join(wrap_up_parts)
+
+    return (
+        "        contexts = self.define_contexts()\n"
+        "        ctx = contexts.add_context(\"default\")\n"
+        "\n"
+        f"        ctx.add_step(\"greet\") \\\n"
+        f"            .set_text({json.dumps(greet_text)}) \\\n"
+        "            .set_step_criteria(\"Caller has stated their reason for calling\") \\\n"
+        "            .set_valid_steps([\"assist\"]) \\\n"
+        f"            .set_functions({json.dumps(greet_functions)})\n"
+        "\n"
+        f"        ctx.add_step(\"assist\") \\\n"
+        f"            .set_text({json.dumps(assist_text)}) \\\n"
+        "            .set_step_criteria(\"Caller's request handled or escalated\") \\\n"
+        "            .set_valid_steps([\"wrap_up\"]) \\\n"
+        f"            .set_functions({json.dumps(assist_functions)})\n"
+        "\n"
+        f"        ctx.add_step(\"wrap_up\") \\\n"
+        f"            .set_text({json.dumps(wrap_up_text)}) \\\n"
+        f"            .set_functions({json.dumps(wrap_up_functions)})\n"
+    )

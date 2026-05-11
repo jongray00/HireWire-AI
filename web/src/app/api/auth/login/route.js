@@ -10,12 +10,33 @@ import {
   ProvisioningError,
 } from '@/lib/signalwire-provisioning';
 import { issueSession, buildSessionCookie } from '@/lib/jwt';
+import { checkRateLimit, clientIp } from '@/lib/rate-limit';
 
 function appDomain() {
   return process.env.HIREWIRE_APP_DOMAIN || 'http://localhost:5001';
 }
 
+const LOGIN_RATE_LIMIT = {
+  windowMs: 60_000, // 1 minute
+  max: 5,           // 5 login attempts per IP per minute
+};
+
 export async function POST(request) {
+  const ip = clientIp(request);
+  const rl = checkRateLimit({ key: `login:${ip}`, ...LOGIN_RATE_LIMIT });
+  if (!rl.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'rate_limited' }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': Math.ceil(rl.retryAfterMs / 1000).toString(),
+        },
+      },
+    );
+  }
+
   let body;
   try {
     body = await request.json();

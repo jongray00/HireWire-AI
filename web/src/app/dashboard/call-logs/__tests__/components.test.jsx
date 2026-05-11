@@ -419,18 +419,19 @@ describe("CallDetail", () => {
   it("shows all main tabs", () => {
     const log = makeLogEntry();
     render(<CallDetail log={log} />);
-    expect(screen.getByText("Transcript")).toBeInTheDocument();
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Charts")).toBeInTheDocument();
-    expect(screen.getByText(/Functions/)).toBeInTheDocument();
-    expect(screen.getByText("AI Summary")).toBeInTheDocument();
-    expect(screen.getByText("Post-Prompt")).toBeInTheDocument();
     expect(screen.getByText("Timeline")).toBeInTheDocument();
-    expect(screen.getByText("State Data")).toBeInTheDocument();
+    expect(screen.getByText("Transcript")).toBeInTheDocument();
+    expect(screen.getByText(/SWAIG Inspector/)).toBeInTheDocument();
+    expect(screen.getByText("Post-Prompt")).toBeInTheDocument();
+    expect(screen.getByText("State Flow")).toBeInTheDocument();
+    expect(screen.getByText("Global Data")).toBeInTheDocument();
   });
   it("switches tabs on click", () => {
     const log = makeLogEntry();
     render(<CallDetail log={log} />);
-    fireEvent.click(screen.getByText("AI Summary"));
+    fireEvent.click(screen.getByText("Post-Prompt"));
     expect(screen.getByText("Customer had a billing issue.")).toBeInTheDocument();
   });
   it("shows Recording tab only when URL present", () => {

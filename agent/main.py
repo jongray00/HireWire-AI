@@ -21,7 +21,7 @@ from typing import Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 
 from signalwire_agents import AgentBase, SwaigFunctionResult
-from fastapi import FastAPI, Request, HTTPException, Path
+from fastapi import FastAPI, Request, HTTPException, Path, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 
@@ -29,9 +29,39 @@ import uvicorn
 
 from agent.sdk_code_templates import (
     SWAIG_TEMPLATES,
+    contexts_block,
     datasphere_block,
     env_var_header,
 )
+from agent.lib import webhook_auth, db, config
+
+
+def require_webhook_basic_auth(
+    authorization: str | None = Header(default=None),
+) -> webhook_auth.WebhookScope:
+    """FastAPI dependency that verifies per-project HTTP Basic Auth on
+    SignalWire webhook requests.
+
+    Returns the matching ``WebhookScope`` on success.  Raises ``HTTPException``
+    401 with ``WWW-Authenticate: Basic realm="HireWire"`` on any failure
+    (missing header, unknown user, wrong password, malformed header).
+    """
+    cfg = config.Config.load()
+    conn = db.open_connection(cfg.db_path)
+    try:
+        return webhook_auth.verify_webhook_basic_auth(
+            conn, authorization=authorization
+        )
+    except webhook_auth.WebhookAuthError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=str(exc),
+            headers={
+                "WWW-Authenticate": f'Basic realm="{webhook_auth.WEBHOOK_REALM}"'
+            },
+        )
+    finally:
+        conn.close()
 
 # Module-level language-code → language-name map.  Used by both
 # VirtualEmployeeAgent._get_language_name and _generate_sdk_code.
@@ -152,6 +182,9 @@ class VirtualEmployeeAgent(AgentBase):
         # Configure personality
         self._update_personality()
 
+        # Build the 3-step state machine: greet → assist → wrap_up
+        self._build_employee_context()
+
         # Configure post-prompt for call analytics
         self._configure_post_prompt()
 
@@ -163,23 +196,12 @@ class VirtualEmployeeAgent(AgentBase):
         return _LANGUAGE_MAP.get(code, "English")
 
     def _update_personality(self):
-        """Update agent personality from employee config using POM sections"""
-        name = self.employee_config.get('name', 'Assistant')
-        role = self.employee_config.get('role', 'Virtual Assistant')
-        greeting = self.employee_config.get('greeting', f'Hello, I am {name}.')
-        prompt = self.employee_config.get('prompt', '')
-
-        # Identity section
-        self.prompt_add_section(
-            "Identity",
-            body=f"You are {name}, a {role}. Your greeting is: \"{greeting}\""
-        )
-
-        # Main instructions from the user's prompt (may contain markdown sections)
-        if prompt:
-            self.prompt_add_section("Instructions", body=prompt)
-
-        # Voice interaction guidelines
+        """Set top-level cross-step config: voice-interaction guidelines POM
+        section, temperature, and speech_hints. Step-specific identity and
+        instructions live in the contexts/steps state machine — see
+        _build_employee_context.
+        """
+        # Voice interaction guidelines apply across all steps
         guidelines = [
             "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
             "Be conversational and natural, not robotic",
@@ -187,21 +209,15 @@ class VirtualEmployeeAgent(AgentBase):
             "If you are unsure about something, say so and offer to connect the caller with a human",
             "Always end interactions with a clear next step",
         ]
-
-        # Add SMS offer guideline if send_summary_sms is enabled
-        enabled_functions = self.employee_config.get('enabled_functions', [])
-        if 'send_summary_sms' in enabled_functions:
-            guidelines.append(
-                "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
-                "If yes, ask for their phone number, then use the send_summary_sms function."
-            )
+        # NOTE: the SMS-offer guideline is no longer added here — it lives in
+        # the wrap_up step's text (see _build_employee_context).
 
         self.prompt_add_section(
             "Voice Interaction Guidelines",
             bullets=guidelines
         )
 
-        # Set temperature
+        # Temperature applies across all steps
         temperature = self.employee_config.get('temperature', 0.7)
         self.set_param("temperature", temperature)
 
@@ -230,6 +246,76 @@ class VirtualEmployeeAgent(AgentBase):
             "\n"
             "Output ONLY the JSON object. No preamble, no postscript, no markdown fences."
         )
+
+    def _build_employee_context(self):
+        """Define a 3-step state machine for the inbound call:
+            greet → assist → wrap_up
+
+        Mirrors the wizard's contexts/steps structure but with a generic
+        flow suitable for any employee. Each step constrains which SWAIG
+        functions the AI can call; the AI advances by calling begin_assist
+        or wrap_up_call.
+        """
+        name = self.employee_config.get("name", "Assistant")
+        role = self.employee_config.get("role", "Virtual Assistant")
+        greeting = self.employee_config.get("greeting", f"Hello, I am {name}.")
+        prompt_body = self.employee_config.get("prompt", "") or "Help the caller with their request."
+        enabled_functions = self.employee_config.get("enabled_functions") or []
+
+        # Function distribution per step
+        greet_functions = ["begin_assist"]
+        if "check_business_hours" in enabled_functions:
+            greet_functions.append("check_business_hours")
+
+        assist_functions = [fn for fn in enabled_functions if fn != "send_summary_sms"]
+        assist_functions.append("wrap_up_call")
+
+        wrap_up_functions = []
+        if "send_summary_sms" in enabled_functions:
+            wrap_up_functions.append("send_summary_sms")
+
+        # Step text bodies
+        greet_text = (
+            f'You are {name}, a {role}. Open the call with: "{greeting}". '
+            "After greeting, listen for what the caller needs. Keep replies to 1-3 sentences. "
+            "When the caller has stated what they're calling about, call begin_assist() to start helping."
+        )
+
+        assist_text = (
+            f"{prompt_body}\n\n"
+            "Use the available SWAIG functions when appropriate. When the caller's request is fully "
+            "addressed, call wrap_up_call() to close the call gracefully."
+        )
+
+        wrap_up_text_parts = ["Wrap the call. Briefly recap what happened in 1 sentence."]
+        if "send_summary_sms" in enabled_functions:
+            wrap_up_text_parts.append(
+                "Then offer to text a summary to the caller's phone. If they say yes, ask for the "
+                "number and call send_summary_sms with a short summary."
+            )
+        wrap_up_text_parts.append("Thank the caller and end the call.")
+        wrap_up_text = " ".join(wrap_up_text_parts)
+
+        # Build the state machine
+        contexts = self.define_contexts()
+        ctx = contexts.add_context("default")
+
+        ctx.add_step("greet") \
+            .set_text(greet_text) \
+            .set_step_criteria("Caller has stated their reason for calling") \
+            .set_valid_steps(["assist"]) \
+            .set_functions(greet_functions)
+
+        ctx.add_step("assist") \
+            .set_text(assist_text) \
+            .set_step_criteria("Caller's request handled or escalated") \
+            .set_valid_steps(["wrap_up"]) \
+            .set_functions(assist_functions)
+
+        ctx.add_step("wrap_up") \
+            .set_text(wrap_up_text) \
+            .set_functions(wrap_up_functions)
+        # wrap_up is terminal — no set_valid_steps()
 
     def _configure_functions(self):
         """Configure which functions are enabled for this employee"""
@@ -301,6 +387,11 @@ class VirtualEmployeeAgent(AgentBase):
         # Also skip functions registered by skills (e.g. DataSphere) so they are
         # not mistakenly wiped out by the cleanup loop.
         swaig_functions = [f for f in enabled_functions if f != 'search_knowledge']
+
+        # Transition tools are part of the greet→assist→wrap_up state machine
+        # and must remain registered regardless of enabled_functions.
+        BUILTIN_TRANSITIONS = {"begin_assist", "wrap_up_call"}
+
         if enabled_functions:
             # Collect function names registered by skills (e.g. DataSphere) so the
             # removal loop below never wipes them out. Skills set their tool_name
@@ -312,7 +403,11 @@ class VirtualEmployeeAgent(AgentBase):
             }
             all_functions = list(self._tool_registry.get_all_functions().keys())
             for func_name in all_functions:
-                if func_name not in swaig_functions and func_name not in skill_function_names:
+                if (
+                    func_name not in swaig_functions
+                    and func_name not in skill_function_names
+                    and func_name not in BUILTIN_TRANSITIONS
+                ):
                     self._tool_registry.remove_function(func_name)
                     logger.info(f"  Removed function '{func_name}' (not in enabled list)")
 
@@ -677,6 +772,24 @@ class VirtualEmployeeAgent(AgentBase):
                 }
             })
             return result
+
+    @AgentBase.tool(
+        name="begin_assist",
+        description="Call this when the caller has stated their reason for calling and you are ready to start helping them.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def begin_assist(self, args, raw_data):
+        """Step transition: greet -> assist."""
+        return SwaigFunctionResult("Got it, let me help with that.")
+
+    @AgentBase.tool(
+        name="wrap_up_call",
+        description="Call this when the caller's request is fully addressed and you are ready to close the call.",
+        parameters={"type": "object", "properties": {}}
+    )
+    def wrap_up_call(self, args, raw_data):
+        """Step transition: assist -> wrap_up."""
+        return SwaigFunctionResult("Let me wrap things up.")
 
     def on_swml_request(self, request_data=None, callback_path=None, request=None):
         """Override to dynamically set video URLs and enable live transcription"""
@@ -1571,6 +1684,7 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
         class_name = "Agent" + class_name
 
     # Build voice-interaction guidelines (mirror _update_personality lines 171-185).
+    # NOTE: the SMS-offer guideline lives in the wrap_up step's text now, not here.
     guidelines = [
         "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
         "Be conversational and natural, not robotic",
@@ -1578,39 +1692,39 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
         "If you are unsure about something, say so and offer to connect the caller with a human",
         "Always end interactions with a clear next step",
     ]
-    if "send_summary_sms" in enabled_functions:
-        guidelines.append(
-            "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
-            "If yes, ask for their phone number, then use the send_summary_sms function."
-        )
 
     guidelines_literal = json.dumps(guidelines, indent=8).replace("\n", "\n        ")
 
-    # Identity section body (mirror _update_personality line 161-164).
-    # Use repr() to produce a safe Python string literal — handles all escaping.
-    identity_body_raw = f'You are {name}, a {role}. Your greeting is: "{greeting}"'
-    identity_body_literal = repr(identity_body_raw)  # e.g. 'You are ...' with proper escaping
+    # Identity / Instructions live in the contexts/steps state machine.
+    # Build the contexts/steps emission that mirrors _build_employee_context.
+    contexts_lines = contexts_block(employee_config)
 
-    # Instructions section is conditional on prompt_body being non-empty.
-    prompt_body_literal = repr(prompt_body)
-    instructions_block = (
-        f'        self.prompt_add_section("Instructions", body={prompt_body_literal})\n'
-        if prompt_body else ""
+    # Mirror live agent: if enabled_functions is empty, ALL known user-configurable
+    # templates are emitted (live VirtualEmployeeAgent has all tools as class methods
+    # and only removes them when enabled_functions is non-empty — see
+    # _configure_functions's `if enabled_functions:`). Transition tools are
+    # emitted separately below (always).
+    BUILTIN_TRANSITIONS = ["begin_assist", "wrap_up_call"]
+    user_functions_to_emit = (
+        [k for k in SWAIG_TEMPLATES.keys() if k not in BUILTIN_TRANSITIONS]
+        if not enabled_functions
+        else [f for f in enabled_functions if f != "search_knowledge" and f not in BUILTIN_TRANSITIONS]
     )
 
-    # Mirror live agent: if enabled_functions is empty, ALL known templates are emitted
-    # (live VirtualEmployeeAgent has all tools as class methods and only removes them
-    # when enabled_functions is non-empty — see _configure_functions's `if enabled_functions:`).
-    functions_to_emit = (
-        list(SWAIG_TEMPLATES.keys()) if not enabled_functions
-        else [f for f in enabled_functions if f != "search_knowledge"]
-    )
-
-    # Compose enabled SWAIG handlers, de-duping helpers.
+    # Compose SWAIG handlers, de-duping helpers.
     swaig_methods: list = []
     helpers: dict = {}
     unknown_warnings: list = []
-    for fn_id in functions_to_emit:
+
+    # Built-in transitions are emitted unconditionally — they are part of the
+    # greet→assist→wrap_up state machine, not the user-configurable functions list.
+    for fn_id in BUILTIN_TRANSITIONS:
+        method_src, builder_helpers = SWAIG_TEMPLATES[fn_id](employee_config)
+        swaig_methods.append(method_src)
+        for hname, hsrc in builder_helpers.items():
+            helpers.setdefault(hname, hsrc)
+
+    for fn_id in user_functions_to_emit:
         if fn_id == "search_knowledge":
             continue  # handled by datasphere_block
         builder = SWAIG_TEMPLATES.get(fn_id)
@@ -1691,14 +1805,11 @@ class {class_name}(AgentBase):
         )
 
         self.prompt_add_section(
-            "Identity",
-            body={identity_body_literal},
-        )
-{instructions_block}        self.prompt_add_section(
             "Voice Interaction Guidelines",
             bullets={guidelines_literal},
         )
 
+{contexts_lines}
         self.set_param("temperature", {temperature})
 
 {datasphere_lines}
@@ -1911,13 +2022,21 @@ async def get_agent_info():
 
 # Health check endpoint
 @app.post("/api/post-prompt/{path:path}")
-async def proxy_post_prompt(path: str, request: Request):
+async def proxy_post_prompt(
+    path: str,
+    request: Request,
+    scope: webhook_auth.WebhookScope = Depends(require_webhook_basic_auth),
+):
     """Proxy post-prompt webhooks from SignalWire to the frontend.
 
     SignalWire calls the post_prompt_url that's set during on_swml_request — this
     URL is built from APP_DOMAIN (the ngrok tunnel) which forwards port 8000 to
     the agent. The post-prompt route lives in the frontend (port 5001), so we
     forward the full body and headers there. Returns the frontend's response.
+
+    Per-project Basic Auth is enforced via ``require_webhook_basic_auth``.
+    The matched ``WebhookScope`` is currently unused by the proxy body but
+    is available for downstream tagging / project pinning.
     """
     try:
         body = await request.body()

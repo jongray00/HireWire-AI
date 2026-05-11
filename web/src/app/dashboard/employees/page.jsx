@@ -474,7 +474,8 @@ export default function EmployeesPage() {
 
   const loadEmployees = async () => {
     try {
-      // Load from API (DB-backed)
+      // Source of truth: /api/list-employees (HireWire Phase 2+).
+      // Fetched fresh on every mount — no localStorage cache.
       let projectId;
       try {
         const session = JSON.parse(localStorage.getItem("sally_sales_session") || "{}");
@@ -488,29 +489,21 @@ export default function EmployeesPage() {
       const data = await res.json();
       if (data.success && data.employees) {
         setEmployees(data.employees);
-        // Keep localStorage in sync as a client-side cache
-        localStorage.setItem("sally_sales_employees", JSON.stringify(data.employees));
       } else {
-        // Fallback to localStorage
-        const employeesData = localStorage.getItem("sally_sales_employees");
-        setEmployees(employeesData ? JSON.parse(employeesData) : []);
+        setEmployees([]);
       }
     } catch (error) {
       console.error("Failed to load employees:", error);
-      // Fallback to localStorage
-      try {
-        const employeesData = localStorage.getItem("sally_sales_employees");
-        setEmployees(employeesData ? JSON.parse(employeesData) : []);
-      } catch {
-        setEmployees([]);
-      }
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
   };
 
   const saveEmployees = (newEmployees) => {
-    localStorage.setItem("sally_sales_employees", JSON.stringify(newEmployees));
+    // Source of truth: /api/list-employees (HireWire Phase 2+).
+    // Optimistically update local state, then sync to server. Next mount
+    // re-fetches from the API, so no localStorage write is needed.
     setEmployees(newEmployees);
     syncEmployeesToServer(newEmployees);
   };

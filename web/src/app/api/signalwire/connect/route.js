@@ -1,5 +1,5 @@
 import { upsertUser } from '@/lib/db';
-import { createSessionToken, buildSessionCookie } from '@/lib/session';
+import { issueSession, buildSessionCookie } from '@/lib/jwt';
 
 export async function POST(request) {
   try {
@@ -198,8 +198,9 @@ export async function POST(request) {
       console.warn('[Connect] Could not create wizard resource:', err.message);
     }
 
-    // Create JWT session token
-    const token = await createSessionToken({ projectId, spaceUrl: normalizedSpaceUrl });
+    // Create JWT session token (hirewire_session cookie; spaceUrl is read from
+    // the users table via getUserByProjectId, not the JWT payload).
+    const token = await issueSession({ projectId });
     const cookie = buildSessionCookie(token);
 
     // Return connection success with subscriber info + set session cookie

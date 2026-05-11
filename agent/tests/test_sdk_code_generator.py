@@ -319,7 +319,16 @@ def test_full_config_swml_parity(tmp_path, monkeypatch):
 
 
 def test_unknown_function_emits_warning_no_crash(tmp_path):
-    """Unknown function should emit warning comment and not crash; valid functions must work."""
+    """Unknown function should emit warning comment and not crash; valid functions must work.
+
+    The contexts/steps refactor surfaces the unknown function name inside the
+    assist step's `functions` list (mirroring the live agent — it does the same
+    because `_build_employee_context` distributes `enabled_functions` verbatim).
+    What the generator must NOT do is emit a SWAIG handler for it: there's no
+    template, so the warning comment goes in instead. SWML parity holds because
+    the live agent also doesn't define a `set_identity` SWAIG tool, so neither
+    has it in the SWAIG functions block.
+    """
     config = _minimal_config()
     config["enabled_functions"] = ["transfer_to_human", "set_identity"]  # set_identity is wizard-only
     config["transfer_number"] = "+15551112222"
@@ -329,6 +338,137 @@ def test_unknown_function_emits_warning_no_crash(tmp_path):
     # Must still load and render SWML
     module = _load_generated_module(code, tmp_path)
     gen_agent = _find_first_class(module)()
-    swml = gen_agent._render_swml()
-    assert "transfer_to_human" in swml
-    assert "set_identity" not in swml
+    gen_swml_json = json.loads(gen_agent._render_swml())
+
+    # transfer_to_human handler exists and is reachable from the assist step.
+    swaig_names = [
+        f["function"]
+        for f in next(s.get("ai") for s in gen_swml_json["sections"]["main"] if isinstance(s, dict) and s.get("ai")).get("SWAIG", {}).get("functions", [])
+    ]
+    assert "transfer_to_human" in swaig_names
+    # No SWAIG handler emitted for the unknown function (the warning replaces the handler).
+    assert "set_identity" not in swaig_names
+
+    # SWML parity with live agent must hold even with an unknown function present.
+    live_swml = VirtualEmployeeAgent(config)._render_swml()
+    assert _normalize_swml(gen_agent._render_swml()) == _normalize_swml(live_swml)
+
+
+# ---------------------------------------------------------------------------
+# Structural helpers + tests for the Contexts+Steps refactor (Task 1).
+# These tests are expected to FAIL until Tasks 2-5 land — they assert the
+# eventual shape of the SWML (contexts.default.steps[]) which doesn't exist
+# yet on the live agent.
+# ---------------------------------------------------------------------------
+
+
+def _extract_steps(swml: dict, context_name: str = "default") -> dict:
+    """Walk the SWML structure to the contexts -> steps block.
+
+    Returns a dict mapping step_name -> step_dict for the named context.
+    Raises AssertionError if the contexts block is missing or malformed.
+    """
+    main = swml.get("sections", {}).get("main", [])
+    ai_block = next((s.get("ai") for s in main if isinstance(s, dict) and s.get("ai")), None)
+    assert ai_block, "No ai block in SWML main section"
+    prompt = ai_block.get("prompt", {})
+    contexts = prompt.get("contexts", {})
+    assert context_name in contexts, f"Context '{context_name}' not found in {list(contexts.keys())}"
+    steps_list = contexts[context_name].get("steps", [])
+    return {s["name"]: s for s in steps_list}
+
+
+def _extract_pom_sections(swml: dict) -> list:
+    """Return the list of POM sections at the top-level prompt."""
+    main = swml.get("sections", {}).get("main", [])
+    ai_block = next((s.get("ai") for s in main if isinstance(s, dict) and s.get("ai")), None)
+    assert ai_block, "No ai block in SWML main section"
+    prompt = ai_block.get("prompt", {})
+    return prompt.get("pom", [])
+
+
+def test_step_definitions_have_correct_function_lists():
+    config = _minimal_config()
+    config["enabled_functions"] = ["transfer_to_human", "send_summary_sms", "check_business_hours"]
+    config["transfer_number"] = "+15551112222"
+    config["sms_from_number"] = "+15553334444"
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    steps = _extract_steps(swml, "default")
+
+    assert "begin_assist" in steps["greet"]["functions"]
+    assert "check_business_hours" in steps["greet"]["functions"]
+    assert "send_summary_sms" not in steps["greet"]["functions"]
+    assert "transfer_to_human" not in steps["greet"]["functions"]
+
+    assert "transfer_to_human" in steps["assist"]["functions"]
+    assert "wrap_up_call" in steps["assist"]["functions"]
+    assert "send_summary_sms" not in steps["assist"]["functions"]  # moved to wrap_up
+
+    assert "send_summary_sms" in steps["wrap_up"]["functions"]
+    assert "wrap_up_call" not in steps["wrap_up"]["functions"]  # already in wrap_up
+
+
+def test_user_prompt_lands_in_assist_step():
+    config = _minimal_config()
+    config["prompt"] = "UNIQUE_MARKER_PROMPT_42"
+    config["enabled_functions"] = []
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    steps = _extract_steps(swml, "default")
+
+    assert "UNIQUE_MARKER_PROMPT_42" in steps["assist"]["text"]
+    assert "UNIQUE_MARKER_PROMPT_42" not in steps["greet"]["text"]
+    assert "UNIQUE_MARKER_PROMPT_42" not in steps["wrap_up"]["text"]
+
+
+def test_greeting_lands_in_greet_step():
+    config = _minimal_config()
+    config["greeting"] = "UNIQUE_MARKER_GREETING_99"
+    config["enabled_functions"] = []
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    steps = _extract_steps(swml, "default")
+
+    assert "UNIQUE_MARKER_GREETING_99" in steps["greet"]["text"]
+
+
+def test_voice_interaction_guidelines_remains_pom_section():
+    config = _minimal_config()
+    config["enabled_functions"] = []
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    sections = _extract_pom_sections(swml)
+    titles = [s.get("title") for s in sections if isinstance(s, dict)]
+
+    assert "Voice Interaction Guidelines" in titles
+    assert "Identity" not in titles, "Identity section must move to greet step text"
+    assert "Instructions" not in titles, "Instructions section must move to assist step text"
+
+
+def test_wrap_up_step_text_includes_sms_offer_when_enabled():
+    config = _minimal_config()
+    config["enabled_functions"] = ["send_summary_sms"]
+    config["sms_from_number"] = "+15553334444"
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    steps = _extract_steps(swml, "default")
+
+    assert "text a summary" in steps["wrap_up"]["text"].lower()
+
+
+def test_wrap_up_step_text_omits_sms_offer_when_disabled():
+    config = _minimal_config()
+    config["enabled_functions"] = ["transfer_to_human"]
+    config["transfer_number"] = "+15551112222"
+
+    agent = VirtualEmployeeAgent(config)
+    swml = json.loads(agent._render_swml())
+    steps = _extract_steps(swml, "default")
+
+    assert "text a summary" not in steps["wrap_up"]["text"].lower()

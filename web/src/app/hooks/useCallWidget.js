@@ -36,7 +36,24 @@ export function useCallWidget() {
 
       // Pre-call domain check: reconcile stale webhook URLs
       try {
-        const employees = JSON.parse(localStorage.getItem("sally_sales_employees") || "[]");
+        // Source of truth: /api/list-employees (HireWire Phase 2+).
+        // Fetched fresh on every call — no localStorage cache.
+        let employees = [];
+        try {
+          let empUrl = "/api/employees/sync";
+          try {
+            const session = JSON.parse(localStorage.getItem("sally_sales_session") || "{}");
+            const projectId = session.credentials?.projectId;
+            if (projectId) empUrl += `?projectId=${encodeURIComponent(projectId)}`;
+          } catch { /* ignore */ }
+          const empRes = await fetch(empUrl);
+          const empData = await empRes.json();
+          if (empData?.success && Array.isArray(empData.employees)) {
+            employees = empData.employees;
+          }
+        } catch (fetchErr) {
+          console.warn("[useCallWidget] Failed to fetch employees for pre-call check:", fetchErr?.message || fetchErr);
+        }
         const employee = employees.find(e => e.callFabricAddress === destination);
         if (employee?.webhookUrl) {
           const domainRes = await fetch("/api/settings/domain");
