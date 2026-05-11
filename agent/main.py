@@ -29,6 +29,7 @@ import uvicorn
 
 from agent.sdk_code_templates import (
     SWAIG_TEMPLATES,
+    contexts_block,
     datasphere_block,
     env_var_header,
 )
@@ -1654,6 +1655,7 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
         class_name = "Agent" + class_name
 
     # Build voice-interaction guidelines (mirror _update_personality lines 171-185).
+    # NOTE: the SMS-offer guideline lives in the wrap_up step's text now, not here.
     guidelines = [
         "Keep responses to 1-3 sentences — this is a phone call, not a text chat",
         "Be conversational and natural, not robotic",
@@ -1661,39 +1663,39 @@ def _generate_sdk_code(employee_config: Dict[str, Any]) -> str:
         "If you are unsure about something, say so and offer to connect the caller with a human",
         "Always end interactions with a clear next step",
     ]
-    if "send_summary_sms" in enabled_functions:
-        guidelines.append(
-            "Before ending the call, ask the caller if they would like a summary sent to their phone via text message. "
-            "If yes, ask for their phone number, then use the send_summary_sms function."
-        )
 
     guidelines_literal = json.dumps(guidelines, indent=8).replace("\n", "\n        ")
 
-    # Identity section body (mirror _update_personality line 161-164).
-    # Use repr() to produce a safe Python string literal — handles all escaping.
-    identity_body_raw = f'You are {name}, a {role}. Your greeting is: "{greeting}"'
-    identity_body_literal = repr(identity_body_raw)  # e.g. 'You are ...' with proper escaping
+    # Identity / Instructions live in the contexts/steps state machine.
+    # Build the contexts/steps emission that mirrors _build_employee_context.
+    contexts_lines = contexts_block(employee_config)
 
-    # Instructions section is conditional on prompt_body being non-empty.
-    prompt_body_literal = repr(prompt_body)
-    instructions_block = (
-        f'        self.prompt_add_section("Instructions", body={prompt_body_literal})\n'
-        if prompt_body else ""
+    # Mirror live agent: if enabled_functions is empty, ALL known user-configurable
+    # templates are emitted (live VirtualEmployeeAgent has all tools as class methods
+    # and only removes them when enabled_functions is non-empty — see
+    # _configure_functions's `if enabled_functions:`). Transition tools are
+    # emitted separately below (always).
+    BUILTIN_TRANSITIONS = ["begin_assist", "wrap_up_call"]
+    user_functions_to_emit = (
+        [k for k in SWAIG_TEMPLATES.keys() if k not in BUILTIN_TRANSITIONS]
+        if not enabled_functions
+        else [f for f in enabled_functions if f != "search_knowledge" and f not in BUILTIN_TRANSITIONS]
     )
 
-    # Mirror live agent: if enabled_functions is empty, ALL known templates are emitted
-    # (live VirtualEmployeeAgent has all tools as class methods and only removes them
-    # when enabled_functions is non-empty — see _configure_functions's `if enabled_functions:`).
-    functions_to_emit = (
-        list(SWAIG_TEMPLATES.keys()) if not enabled_functions
-        else [f for f in enabled_functions if f != "search_knowledge"]
-    )
-
-    # Compose enabled SWAIG handlers, de-duping helpers.
+    # Compose SWAIG handlers, de-duping helpers.
     swaig_methods: list = []
     helpers: dict = {}
     unknown_warnings: list = []
-    for fn_id in functions_to_emit:
+
+    # Built-in transitions are emitted unconditionally — they are part of the
+    # greet→assist→wrap_up state machine, not the user-configurable functions list.
+    for fn_id in BUILTIN_TRANSITIONS:
+        method_src, builder_helpers = SWAIG_TEMPLATES[fn_id](employee_config)
+        swaig_methods.append(method_src)
+        for hname, hsrc in builder_helpers.items():
+            helpers.setdefault(hname, hsrc)
+
+    for fn_id in user_functions_to_emit:
         if fn_id == "search_knowledge":
             continue  # handled by datasphere_block
         builder = SWAIG_TEMPLATES.get(fn_id)
@@ -1774,14 +1776,11 @@ class {class_name}(AgentBase):
         )
 
         self.prompt_add_section(
-            "Identity",
-            body={identity_body_literal},
-        )
-{instructions_block}        self.prompt_add_section(
             "Voice Interaction Guidelines",
             bullets={guidelines_literal},
         )
 
+{contexts_lines}
         self.set_param("temperature", {temperature})
 
 {datasphere_lines}

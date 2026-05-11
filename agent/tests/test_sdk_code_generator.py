@@ -319,7 +319,16 @@ def test_full_config_swml_parity(tmp_path, monkeypatch):
 
 
 def test_unknown_function_emits_warning_no_crash(tmp_path):
-    """Unknown function should emit warning comment and not crash; valid functions must work."""
+    """Unknown function should emit warning comment and not crash; valid functions must work.
+
+    The contexts/steps refactor surfaces the unknown function name inside the
+    assist step's `functions` list (mirroring the live agent — it does the same
+    because `_build_employee_context` distributes `enabled_functions` verbatim).
+    What the generator must NOT do is emit a SWAIG handler for it: there's no
+    template, so the warning comment goes in instead. SWML parity holds because
+    the live agent also doesn't define a `set_identity` SWAIG tool, so neither
+    has it in the SWAIG functions block.
+    """
     config = _minimal_config()
     config["enabled_functions"] = ["transfer_to_human", "set_identity"]  # set_identity is wizard-only
     config["transfer_number"] = "+15551112222"
@@ -329,9 +338,20 @@ def test_unknown_function_emits_warning_no_crash(tmp_path):
     # Must still load and render SWML
     module = _load_generated_module(code, tmp_path)
     gen_agent = _find_first_class(module)()
-    swml = gen_agent._render_swml()
-    assert "transfer_to_human" in swml
-    assert "set_identity" not in swml
+    gen_swml_json = json.loads(gen_agent._render_swml())
+
+    # transfer_to_human handler exists and is reachable from the assist step.
+    swaig_names = [
+        f["function"]
+        for f in next(s.get("ai") for s in gen_swml_json["sections"]["main"] if isinstance(s, dict) and s.get("ai")).get("SWAIG", {}).get("functions", [])
+    ]
+    assert "transfer_to_human" in swaig_names
+    # No SWAIG handler emitted for the unknown function (the warning replaces the handler).
+    assert "set_identity" not in swaig_names
+
+    # SWML parity with live agent must hold even with an unknown function present.
+    live_swml = VirtualEmployeeAgent(config)._render_swml()
+    assert _normalize_swml(gen_agent._render_swml()) == _normalize_swml(live_swml)
 
 
 # ---------------------------------------------------------------------------
