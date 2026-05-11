@@ -32,7 +32,8 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // Load employees from API (DB-backed), with localStorage fallback
+      // Source of truth: /api/list-employees (HireWire Phase 2+).
+      // Fetched fresh on every dashboard mount — no localStorage cache.
       let employees = [];
       try {
         let empUrl = "/api/employees/sync";
@@ -46,9 +47,8 @@ export default function DashboardPage() {
         if (empData.success && empData.employees) {
           employees = empData.employees;
         }
-      } catch {
-        const employeesData = localStorage.getItem("sally_sales_employees");
-        employees = employeesData ? JSON.parse(employeesData) : [];
+      } catch (err) {
+        console.warn("Failed to load employees from API:", err?.message || err);
       }
 
       // Fetch real call data from post-prompt logs API (scoped to project)
