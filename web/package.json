@@ -99,6 +99,7 @@
     "fast-glob": "^3.3.3",
     "jsdom": "^26.1.0",
     "micromatch": "^4.0.8",
+    "msw": "^2.14.6",
     "postcss": "^8.5.3",
     "tailwindcss": "3",
     "typescript": "^5.8.3",

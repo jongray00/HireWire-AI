@@ -29,15 +29,19 @@ export default function LoginPage() {
         // No session — stay on login page
       });
 
-    // Load saved credentials if remember me was checked
-    const savedCredentials = localStorage.getItem("sally_sales_credentials");
-    if (savedCredentials) {
+    // Load saved prefill if remember me was checked (no api token stored client-side)
+    const savedPrefill = localStorage.getItem("hirewire_login_prefill");
+    if (savedPrefill) {
       try {
-        const creds = JSON.parse(savedCredentials);
-        setCredentials(creds);
+        const obj = JSON.parse(savedPrefill);
+        setCredentials((prev) => ({
+          ...prev,
+          spaceUrl: obj.spaceUrl ?? "",
+          projectId: obj.projectId ?? "",
+        }));
         setRememberMe(true);
       } catch (e) {
-        console.error("Failed to load saved credentials");
+        console.error("Failed to load saved prefill");
       }
     }
   }, [navigate]);
@@ -62,48 +66,39 @@ export default function LoginPage() {
         throw new Error("Please fill in all fields");
       }
 
-      // Use the default subscriber ID
-      const DEFAULT_SUBSCRIBER_ID = "sally_sales_default_user";
-
-      // Test credentials and create/reuse subscriber
-      const response = await fetch("/api/signalwire/connect", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...credentials,
-          subscriberId: DEFAULT_SUBSCRIBER_ID,
+          space_url: credentials.spaceUrl,
+          signalwire_project_id: credentials.projectId,
+          api_token: credentials.apiToken,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to connect to SignalWire");
+        const errorData = await response.json().catch(() => ({}));
+        const map = {
+          invalid_credentials: "SignalWire rejected those credentials.",
+          signalwire_unreachable: "Could not reach SignalWire — try again in a moment.",
+          provisioning_failed: "Could not set up SignalWire resources. Please retry.",
+          missing_fields: "All three fields are required.",
+        };
+        throw new Error(map[errorData?.error] || errorData?.error || "Login failed");
       }
 
       const data = await response.json();
-
-      // Server sets an HttpOnly JWT cookie automatically via Set-Cookie header.
-      // We still store a lightweight session in localStorage for client-side
-      // checks (spaceUrl display, quick redirect logic) but credentials are
-      // NOT stored here — they live server-side in the database.
-      const sessionData = {
-        isLoggedIn: true,
-        credentials: {
-          spaceUrl: credentials.spaceUrl,
-          projectId: credentials.projectId,
-          // apiToken intentionally omitted — stored server-side only
-        },
-        subscriberData: data,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem("sally_sales_session", JSON.stringify(sessionData));
-      localStorage.setItem("sally_sales_subscriber_id", DEFAULT_SUBSCRIBER_ID);
-
-      // Save credentials if remember me is checked (for pre-filling the form)
+      // JWT is in HttpOnly cookie; we only keep prefill state in localStorage if requested
       if (rememberMe) {
-        localStorage.setItem("sally_sales_credentials", JSON.stringify(credentials));
+        localStorage.setItem(
+          "hirewire_login_prefill",
+          JSON.stringify({
+            spaceUrl: credentials.spaceUrl,
+            projectId: credentials.projectId,
+          }),
+        );
       } else {
-        localStorage.removeItem("sally_sales_credentials");
+        localStorage.removeItem("hirewire_login_prefill");
       }
 
       // Redirect to dashboard
