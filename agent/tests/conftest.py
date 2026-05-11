@@ -26,8 +26,6 @@ def isolated_env(monkeypatch, tmp_path, encryption_key):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     # Reset cached crypto + config between tests so a fresh ENCRYPTION_KEY is used
-    # TODO(Task 3): restore the following two lines once agent/lib/crypto.py exists:
-    # from agent.lib import crypto
-    # crypto._reset_cache_for_tests()
-    pass
+    from agent.lib import crypto
+    crypto._reset_cache_for_tests()
     yield
